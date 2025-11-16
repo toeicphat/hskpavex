@@ -1,0 +1,7 @@
+{
+  "name": "Pavex HSK",
+  "description": "A web application for practicing HSK Mandarin, featuring handwriting and vocabulary exercises with a bright education theme.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

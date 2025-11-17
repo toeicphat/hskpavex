@@ -1,12 +1,12 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { HSKLevelData, HSKWord, WordRange, VocabularyPracticeMode } from '../types';
 import { HSK_LEVELS } from '../hsk-levels';
 import { HSK_WORD_RANGES_PLACEHOLDER } from '../global-constants'; // Import from global constants
 import FlashcardPractice from './FlashcardPractice';
 import MatchingWordsPractice from './MatchingWordsPractice';
-import QuizPractice from './QuizPractice'; // New import
+import QuizPractice from './QuizPractice';
+import ListenAndSelectPractice from './ListenAndSelectPractice'; // New import
 
 interface VocabularyPracticeProps {
   selectedHSKLevel: string;
@@ -117,8 +117,8 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
   const totalWordsInLevel = currentHSKData.words.length;
 
   return (
-    <div className="container mx-auto p-4 md:p-8 bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl mt-8">
-      <h2 className="text-3xl font-extrabold text-center text-blue-700 dark:text-blue-300 mb-6">
+    <div className="container mx-auto p-4 md:p-8 bg-blue-100 dark:bg-slate-800 rounded-lg shadow-xl max-w-2xl mt-8">
+      <h2 className="text-3xl font-extrabold text-center text-blue-800 dark:text-blue-300 mb-6">
         Luyện từ vựng: {currentHSKData.label}
       </h2>
 
@@ -134,7 +134,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
                 className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
                   selectedPracticeMode === VocabularyPracticeMode.FLASHCARD
                     ? 'bg-green-600 text-white shadow-md'
-                    : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
                 }`}
                 aria-pressed={selectedPracticeMode === VocabularyPracticeMode.FLASHCARD}
               >
@@ -145,7 +145,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
                 className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
                   selectedPracticeMode === VocabularyPracticeMode.MATCHING_WORDS
                     ? 'bg-green-600 text-white shadow-md'
-                    : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
                 }`}
                 aria-pressed={selectedPracticeMode === VocabularyPracticeMode.MATCHING_WORDS}
               >
@@ -156,11 +156,22 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
                 className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
                   selectedPracticeMode === VocabularyPracticeMode.QUIZ
                     ? 'bg-green-600 text-white shadow-md'
-                    : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
                 }`}
                 aria-pressed={selectedPracticeMode === VocabularyPracticeMode.QUIZ}
               >
                 Quiz
+              </button>
+              <button
+                onClick={() => setSelectedPracticeMode(VocabularyPracticeMode.LISTEN_AND_SELECT)}
+                className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
+                  selectedPracticeMode === VocabularyPracticeMode.LISTEN_AND_SELECT
+                    ? 'bg-green-600 text-white shadow-md'
+                    : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
+                }`}
+                aria-pressed={selectedPracticeMode === VocabularyPracticeMode.LISTEN_AND_SELECT}
+              >
+                Nghe và Chọn Từ
               </button>
             </div>
           </div>
@@ -178,7 +189,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
                   className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
                     selectedWordRange?.label === range.label
                       ? 'bg-purple-600 text-white shadow-md'
-                      : 'bg-gray-200 text-gray-700 hover:bg-purple-100 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                      : 'bg-gray-200 text-gray-700 hover:bg-purple-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
                   }`}
                   aria-pressed={selectedWordRange?.label === range.label}
                 >
@@ -200,7 +211,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
                 value={customRangeStart}
                 onChange={(e) => setCustomRangeStart(e.target.value)}
                 placeholder="Từ"
-                className="w-24 p-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-200 text-center"
+                className="w-24 p-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-200 text-center"
                 aria-label="Từ số"
               />
               <span className="text-gray-700 dark:text-gray-300">-</span>
@@ -213,7 +224,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
                 value={customRangeEnd}
                 onChange={(e) => setCustomRangeEnd(e.target.value)}
                 placeholder="Đến"
-                className="w-24 p-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-200 text-center"
+                className="w-24 p-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-200 text-center"
                 aria-label="Đến số"
               />
             </div>
@@ -240,7 +251,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
             </button>
           </div>
 
-          {(selectedPracticeMode === VocabularyPracticeMode.MATCHING_WORDS || selectedPracticeMode === VocabularyPracticeMode.QUIZ) && (
+          {(selectedPracticeMode === VocabularyPracticeMode.MATCHING_WORDS || selectedPracticeMode === VocabularyPracticeMode.QUIZ || selectedPracticeMode === VocabularyPracticeMode.LISTEN_AND_SELECT) && (
             <div className="mb-6 flex items-center justify-center gap-3">
               <input
                 type="checkbox"
@@ -268,19 +279,21 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
         </>
       ) : (
         <div className="relative">
-          <h2 className="text-3xl font-extrabold text-center text-blue-700 dark:text-blue-300 mb-6">
+          <h2 className="text-3xl font-extrabold text-center text-blue-800 dark:text-blue-300 mb-6">
             Luyện từ vựng: {currentHSKData?.label} -{' '}
-            {selectedPracticeMode === VocabularyPracticeMode.FLASHCARD ? 'Flashcard' : (selectedPracticeMode === VocabularyPracticeMode.MATCHING_WORDS ? 'Ghép Từ' : 'Quiz')}
+            {selectedPracticeMode === VocabularyPracticeMode.FLASHCARD ? 'Flashcard' : 
+             (selectedPracticeMode === VocabularyPracticeMode.MATCHING_WORDS ? 'Ghép Từ' : 
+              (selectedPracticeMode === VocabularyPracticeMode.QUIZ ? 'Quiz' : 'Nghe và Chọn Từ'))}
           </h2>
 
           {message && (
-            <div className="text-center p-4 mb-4 bg-blue-100 dark:bg-gray-700 rounded-lg">
+            <div className="text-center p-4 mb-4 bg-blue-200 dark:bg-slate-700 rounded-lg">
               <p className="text-blue-800 dark:text-blue-200 text-xl font-semibold">{message}</p>
             </div>
           )}
 
           {practiceWords.length === 0 ? (
-            <div className="text-center p-8 bg-white dark:bg-gray-800 rounded-lg shadow-xl mt-8 max-w-2xl mx-auto">
+            <div className="text-center p-8 bg-blue-100 dark:bg-slate-800 rounded-lg shadow-xl mt-8 max-w-2xl mx-auto">
               <p className="text-xl text-red-500 mb-4">{message || 'Không có từ vựng để luyện tập. Vui lòng thử lại với các lựa chọn khác.'}</p>
               <button
                 onClick={handleGoBackToSelection}
@@ -301,6 +314,10 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
 
               {selectedPracticeMode === VocabularyPracticeMode.QUIZ && (
                 <QuizPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} />
+              )}
+
+              {selectedPracticeMode === VocabularyPracticeMode.LISTEN_AND_SELECT && (
+                <ListenAndSelectPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} />
               )}
             </>
           )}

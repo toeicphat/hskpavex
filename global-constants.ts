@@ -12,3 +12,6 @@ export const HSK_WORD_RANGES_PLACEHOLDER: WordRange[] = [
 export const MATCHING_GAME_WORD_COUNT = 10;
 export const QUIZ_WORD_COUNT = 10; // Number of questions in a quiz
 export const QUIZ_OPTION_COUNT = 4; // Number of options for each question
+
+export const LISTEN_AND_SELECT_WORD_COUNT = 10; // Number of words to test in one session
+export const LISTEN_AND_SELECT_OPTION_COUNT = 9; // Number of options to show per question (3x3 grid)

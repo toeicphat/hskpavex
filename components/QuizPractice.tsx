@@ -21,7 +21,7 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
   const [score, setScore] = useState<number>(0);
   const [quizCompleted, setQuizCompleted] = useState<boolean>(false);
   const [isAnswering, setIsAnswering] = useState<boolean>(false); // To prevent multiple clicks while processing
-  const [awaitingCorrectConfirmation, setAwaitingCorrectConfirmation] = useState<boolean>(false); // New state
+  const [awaitingCorrectConfirmation, setAwaitingCorrectConfirmation] = useState<boolean>(false); // If user got it wrong, must pick right one to proceed
 
   const generateQuiz = useCallback(() => {
     if (words.length < QUIZ_OPTION_COUNT || words.length < QUIZ_WORD_COUNT) {
@@ -78,7 +78,8 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
         handleNextQuestion();
       } else {
         // User clicked a wrong answer again while awaiting confirmation for the correct one
-        // Could give a subtle hint or do nothing
+        // Give subtle vibration for incorrect choice while awaiting correction
+        if (navigator.vibrate) navigator.vibrate(100);
         return;
       }
       return; // Exit after handling confirmation click
@@ -99,6 +100,9 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
       }
     } else {
       setFeedback('incorrect');
+      if (navigator.vibrate && !autoAdvance) { // Vibrate only if not auto-advancing and user needs to correct
+        navigator.vibrate(200);
+      }
       if (autoAdvance) {
         setTimeout(() => handleNextQuestion(), 1000); // Auto-advance even on wrong answer if enabled
       } else {
@@ -154,7 +158,7 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
           <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">
             Câu hỏi {currentQuestionIndex + 1} / {quizQuestions.length}
           </p>
-          <div className="bg-blue-100 dark:bg-gray-700 p-6 rounded-lg shadow-inner mb-6 w-full max-w-md text-center">
+          <div className="bg-blue-200 dark:bg-slate-700 p-6 rounded-lg shadow-inner mb-6 w-full max-w-md text-center">
             <p className="text-5xl font-bold text-blue-800 dark:text-blue-200 mb-4" lang="zh-Hans">
               {currentQuestion?.mandarin}
             </p>
@@ -177,7 +181,7 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
                 isDisabled = !isCorrectOption;
                 buttonClasses += isCorrectOption ? 
                   ` bg-green-200 text-green-800 dark:bg-green-700 dark:text-green-200 ring-2 ring-green-500 dark:ring-green-400` :
-                  ` bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed opacity-70`;
+                  ` bg-blue-100 text-gray-500 dark:bg-slate-700 dark:text-gray-400 cursor-not-allowed opacity-70`;
               } else if (feedback) { // Feedback is showing (answer was just given)
                 isDisabled = !autoAdvance; // Disable if not auto-advancing
                 if (isCorrectOption) {
@@ -185,10 +189,10 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
                 } else if (isSelected && !isCorrectOption) {
                   buttonClasses += ` bg-red-500 text-white`;
                 } else {
-                  buttonClasses += ` bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 opacity-70`;
+                  buttonClasses += ` bg-blue-100 dark:bg-slate-700 text-gray-800 dark:text-gray-200 opacity-70`;
                 }
               } else { // No feedback yet, user is choosing
-                buttonClasses += ` bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600`;
+                buttonClasses += ` bg-blue-100 dark:bg-slate-700 text-gray-800 dark:text-gray-200 hover:bg-blue-200 dark:hover:bg-slate-600`;
                 isDisabled = isAnswering; // Disable while processing first answer
               }
 
@@ -229,7 +233,7 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
           )}
         </>
       ) : (
-        <div className="text-center p-8 bg-blue-50 dark:bg-gray-700 rounded-lg shadow-lg w-full max-w-md">
+        <div className="text-center p-8 bg-blue-100 dark:bg-slate-700 rounded-lg shadow-lg w-full max-w-md">
           <h3 className="text-3xl font-bold text-blue-800 dark:text-blue-200 mb-4">Quiz hoàn thành!</h3>
           <p className="text-2xl text-gray-700 dark:text-gray-300 mb-4">
             Điểm của bạn: {score} / {quizQuestions.length}

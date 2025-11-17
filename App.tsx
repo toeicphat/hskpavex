@@ -20,7 +20,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 font-sans">
+    <div className="flex flex-col min-h-screen bg-blue-50 dark:bg-slate-950 font-sans">
       <Header />
       <Navigation
         onSelectSection={handleSelectSection}

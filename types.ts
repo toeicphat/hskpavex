@@ -14,6 +14,7 @@ export enum VocabularyPracticeMode {
   FLASHCARD = 'FLASHCARD',
   MATCHING_WORDS = 'MATCHING_WORDS',
   QUIZ = 'QUIZ',
+  LISTEN_AND_SELECT = 'LISTEN_AND_SELECT', // New mode
 }
 
 export interface WordRange {

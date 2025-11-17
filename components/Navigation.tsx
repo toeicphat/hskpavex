@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Section } from '../types';
 import { HSK_LEVELS } from '../hsk-levels'; // Updated import path
@@ -21,7 +22,7 @@ const Navigation: React.FC<NavigationProps> = ({
   ];
 
   return (
-    <nav className="bg-white dark:bg-gray-800 shadow-lg py-3 sticky top-0 z-10">
+    <nav className="bg-blue-700 dark:bg-slate-800 shadow-lg py-3 sticky top-0 z-10">
       <div className="container mx-auto px-4">
         {/* Main Sections Navigation */}
         <div className="flex flex-wrap justify-center gap-2 md:gap-4 mb-4">
@@ -31,8 +32,8 @@ const Navigation: React.FC<NavigationProps> = ({
               onClick={() => onSelectSection(section.id)}
               className={`px-4 py-2 rounded-lg font-medium transition-colors duration-200 ${
                 currentSection === section.id
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'bg-gray-200 text-gray-700 hover:bg-blue-100 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'
+                  ? 'bg-blue-800 text-white shadow-md'
+                  : 'bg-blue-500 text-white hover:bg-blue-600 dark:bg-slate-700 dark:text-gray-100 dark:hover:bg-slate-600'
               }`}
             >
               {section.label}
@@ -48,8 +49,8 @@ const Navigation: React.FC<NavigationProps> = ({
               onClick={() => onSelectHSKLevel(hsk.level)}
               className={`px-3 py-1.5 text-sm rounded-full transition-colors duration-200 ${
                 currentHSKLevel === hsk.level
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'bg-gray-100 text-gray-600 hover:bg-blue-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                  ? 'bg-blue-800 text-white shadow-sm'
+                  : 'bg-blue-500 text-white hover:bg-blue-600 dark:bg-slate-700 dark:text-gray-100 dark:hover:bg-slate-600'
               }`}
             >
               {hsk.label}

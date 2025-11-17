@@ -74,14 +74,14 @@ const FlashcardPractice: React.FC<FlashcardPracticeProps> = ({ words, onPractice
           }`}
         >
           {/* Front of the card */}
-          <div className="flashcard-front absolute w-full h-full bg-blue-100 dark:bg-gray-700 flex items-center justify-center rounded-lg backface-hidden p-4">
+          <div className="flashcard-front absolute w-full h-full bg-blue-200 dark:bg-slate-700 flex items-center justify-center rounded-lg backface-hidden p-4">
             <p className="text-6xl font-bold text-blue-800 dark:text-blue-200" lang="zh-Hans">
               {currentWord.mandarin}
             </p>
           </div>
           {/* Back of the card */}
-          <div className="flashcard-back absolute w-full h-full bg-green-100 dark:bg-gray-600 flex flex-col items-center justify-center rounded-lg backface-hidden rotate-y-180 p-4">
-            <p className="text-3xl text-green-800 dark:text-green-200 mb-2 font-semibold">
+          <div className="flashcard-back absolute w-full h-full bg-emerald-200 dark:bg-emerald-700 flex flex-col items-center justify-center rounded-lg backface-hidden rotate-y-180 p-4">
+            <p className="text-3xl text-emerald-800 dark:text-emerald-200 mb-2 font-semibold">
               {currentWord.pinyin}
             </p>
             <p className="text-xl text-gray-700 dark:text-gray-300 text-center">
@@ -95,7 +95,7 @@ const FlashcardPractice: React.FC<FlashcardPracticeProps> = ({ words, onPractice
         <button
           onClick={handlePrevious}
           disabled={currentCardIndex === 0}
-          className="bg-gray-300 hover:bg-gray-400 text-gray-800 dark:bg-gray-600 dark:hover:bg-gray-500 dark:text-gray-100 font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="bg-gray-300 hover:bg-gray-400 text-gray-800 dark:bg-slate-600 dark:hover:bg-slate-500 dark:text-gray-100 font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label="Thẻ trước"
         >
           &larr; Trước

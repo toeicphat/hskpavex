@@ -265,10 +265,10 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
               disabled={item.isMatched || allWordsInSelectedRangeUsed || gameWords.length === 0}
               className={`p-3 rounded-lg text-xl font-mandarin transition-all duration-200
                 ${item.isMatched
-                  ? 'bg-green-200 dark:bg-green-700 text-green-800 dark:text-green-200 cursor-not-allowed opacity-70'
+                  ? 'bg-emerald-200 dark:bg-emerald-700 text-emerald-800 dark:text-emerald-200 cursor-not-allowed opacity-70'
                   : selectedLeft === item.id
-                    ? 'bg-blue-300 dark:bg-blue-600 text-blue-900 dark:text-blue-100 ring-2 ring-blue-500'
-                    : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                    ? 'bg-blue-300 dark:bg-slate-600 text-blue-900 dark:text-blue-100 ring-2 ring-blue-500'
+                    : 'bg-blue-100 dark:bg-slate-700 text-gray-800 dark:text-gray-200 hover:bg-blue-200 dark:hover:bg-slate-600'
                 }
                 shadow-md hover:shadow-lg disabled:opacity-50`}
               aria-pressed={selectedLeft === item.id}
@@ -288,10 +288,10 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
               disabled={item.isMatched || allWordsInSelectedRangeUsed || gameWords.length === 0}
               className={`p-3 rounded-lg text-lg text-left transition-all duration-200
                 ${item.isMatched
-                  ? 'bg-green-200 dark:bg-green-700 text-green-800 dark:text-green-200 cursor-not-allowed opacity-70'
+                  ? 'bg-emerald-200 dark:bg-emerald-700 text-emerald-800 dark:text-emerald-200 cursor-not-allowed opacity-70'
                   : selectedRight === item.id
-                    ? 'bg-blue-300 dark:bg-blue-600 text-blue-900 dark:text-blue-100 ring-2 ring-blue-500'
-                    : 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600'
+                    ? 'bg-blue-300 dark:bg-slate-600 text-blue-900 dark:text-blue-100 ring-2 ring-blue-500'
+                    : 'bg-blue-100 dark:bg-slate-700 text-gray-800 dark:text-gray-200 hover:bg-blue-200 dark:hover:bg-slate-600'
                 }
                 shadow-md hover:shadow-lg disabled:opacity-50`}
               aria-pressed={selectedRight === item.id}

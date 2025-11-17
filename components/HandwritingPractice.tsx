@@ -1,14 +1,21 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HSKWord, PracticeMode, WordRange, HSKLevelData } from '../types';
-import { HSK_WORD_RANGES_PLACEHOLDER } from '../global-constants'; // Updated import path
 import { HSK_LEVELS } from '../hsk-levels';
-import DrawingCanvas from './DrawingCanvas';
-import HSKLevelSelector from './HSKLevelSelector';
+import DrawingCanvas, { DrawingCanvasApiRef } from './DrawingCanvas'; // Updated import
 
 interface HandwritingPracticeProps {
   selectedHSKLevel: string;
 }
+
+// Function to normalize pinyin for consistent sorting (e.g., remove tones)
+const normalizePinyinForGrouping = (pinyin: string): string => {
+  return pinyin
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove diacritics
+    .replace(/[0-9]/g, "")         // Remove tone numbers
+    .toLowerCase()
+    .charAt(0);                   // Get first letter
+};
 
 const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLevel }) => {
   const [currentHSKData, setCurrentHSKData] = useState<HSKLevelData | null>(null);
@@ -26,9 +33,52 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
   const [customRangeStart, setCustomRangeStart] = useState<string>('');
   const [customRangeEnd, setCustomRangeEnd] = useState<string>('');
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawingCanvasApiRef = useRef<DrawingCanvasApiRef>(null);
 
-  const generateDynamicRanges = useCallback((totalWords: number) => {
+  const [selectedPenColor, setSelectedPenColor] = useState<string>('#4299E1'); // Default blue-500
+  const [selectedTool, setSelectedTool] = useState<'pen' | 'eraser'>('pen');
+
+  const penColors = [
+    { name: 'Xanh', hex: '#4299E1' },    // Blue-500
+    { name: 'Đỏ', hex: '#EF4444' },      // Red-500
+    { name: 'Cam', hex: '#F97316' },     // Orange-500
+    { name: 'Xanh lá đậm', hex: '#16a34a' }, // Green-600
+    { name: 'Hồng cánh sen', hex: '#EC4899' }, // Pink-500
+    { name: 'Nâu', hex: '#8b4513' },       // SaddleBrown
+    { name: 'Cyan', hex: '#06B6D4' },    // Cyan-500
+  ];
+
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const practiceAreaRef = useRef<HTMLDivElement>(null); // Ref for the main practice area container
+
+
+  // Full-screen logic
+  const toggleFullScreen = () => {
+    if (practiceAreaRef.current) {
+      if (!document.fullscreenElement) {
+        practiceAreaRef.current.requestFullscreen().catch(err => {
+          console.error(`Error attempting to enable full-screen mode: ${err.message} (${err.name})`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleFullScreenChange = () => {
+      setIsFullScreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullScreenChange);
+    };
+  }, []);
+
+
+  // Generates numerical ranges for HSK 1-4
+  const generateNumericalRanges = useCallback((totalWords: number) => {
     const ranges: WordRange[] = [];
     const step = 30; // Increment by 30 words
     for (let i = 0; i < totalWords; i += step) {
@@ -36,18 +86,64 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
       const end = Math.min(i + step, totalWords);
       ranges.push({ start, end, label: `${start} - ${end}` });
     }
-    if (totalWords > 0) { // Only add 'Tất cả' if there are words
-        ranges.push({ start: 1, end: totalWords, label: 'Tất cả' }); // "Tất cả" option
+    if (totalWords > 0) {
+      ranges.push({ start: 1, end: totalWords, label: 'Tất cả' });
     }
-    setDynamicWordRanges(ranges);
+    return ranges;
+  }, []);
+
+  // Generates Pinyin-based ranges for HSK 5 and HSK 6
+  const generatePinyinRanges = useCallback((words: HSKWord[]) => {
+    const ranges: WordRange[] = [];
+    if (words.length === 0) return ranges;
+
+    let currentStart = 0;
+    let currentPinyinChar = normalizePinyinForGrouping(words[0].pinyin);
+
+    for (let i = 0; i < words.length; i++) {
+      const wordPinyinChar = normalizePinyinForGrouping(words[i].pinyin);
+      if (wordPinyinChar !== currentPinyinChar) {
+        // End of current Pinyin group, add range
+        ranges.push({
+          start: currentStart + 1, // 1-based index
+          end: i, // 1-based index
+          label: `${currentPinyinChar.toUpperCase()} (${i - currentStart} từ)` // Display count
+        });
+        currentStart = i;
+        currentPinyinChar = wordPinyinChar;
+      }
+    }
+    // Add the last group
+    if (currentStart < words.length) {
+      ranges.push({
+        start: currentStart + 1,
+        end: words.length,
+        label: `${currentPinyinChar.toUpperCase()} (${words.length - currentStart} từ)` // Display count
+      });
+    }
+
+    if (words.length > 0) {
+      ranges.push({ start: 1, end: words.length, label: 'Tất cả' });
+    }
+
+    return ranges;
   }, []);
 
   useEffect(() => {
     const hskData = HSK_LEVELS.find(hsk => hsk.level === selectedHSKLevel);
     setCurrentHSKData(hskData || null);
+
     if (hskData) {
-      generateDynamicRanges(hskData.words.length);
+      if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') { // Apply Pinyin ranges for HSK 5 and HSK 6
+        // HSK 5 & 6 words are pre-sorted by pinyin
+        setDynamicWordRanges(generatePinyinRanges(hskData.words));
+      } else {
+        setDynamicWordRanges(generateNumericalRanges(hskData.words.length));
+      }
+    } else {
+      setDynamicWordRanges([]); // Clear ranges if no data
     }
+
     // Reset practice state if HSK level changes
     setIsPracticeStarted(false);
     setSelectedWordRange(null);
@@ -59,7 +155,10 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
     setMessage('');
     setCustomRangeStart('');
     setCustomRangeEnd('');
-  }, [selectedHSKLevel, generateDynamicRanges]);
+    if (drawingCanvasApiRef.current) { // Use the new ref
+      drawingCanvasApiRef.current.clear();
+    }
+  }, [selectedHSKLevel, generateNumericalRanges, generatePinyinRanges]);
 
   const filterWords = useCallback(() => {
     if (!currentHSKData || !selectedWordRange) {
@@ -78,8 +177,11 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
       }
     }
 
-    const startIdx = selectedWordRange.start > 0 ? selectedWordRange.start - 1 : 0; // Adjust for 0-based index
-    const endIdx = selectedWordRange.end === Infinity ? wordsToFilter.length : selectedWordRange.end;
+    // Apply range filter (numerical for HSK 1-4, Pinyin-based for HSK 5/6 - both use start/end indices)
+    // Adjust for 0-based index
+    const startIdx = selectedWordRange.start ? selectedWordRange.start - 1 : 0;
+    const endIdx = selectedWordRange.end || wordsToFilter.length; // If end is not defined, go to end of list
+
     const filteredByRange = wordsToFilter.slice(startIdx, endIdx);
     
     // Shuffle the filtered words
@@ -89,10 +191,10 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
     setShowCorrectAnswer(false);
     setUserDrawingDataUrl(null);
     setMessage('');
-    if (canvasRef.current && 'clear' in canvasRef.current && typeof canvasRef.current.clear === 'function') {
-      canvasRef.current.clear();
+    if (drawingCanvasApiRef.current) { // Use the new ref
+      drawingCanvasApiRef.current.clear();
     }
-  }, [currentHSKData, selectedWordRange, mandarinFilter]); // Add mandarinFilter to dependencies
+  }, [currentHSKData, selectedWordRange, mandarinFilter]);
 
   const handleStartPractice = () => {
     if (!selectedWordRange) {
@@ -114,11 +216,36 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
   };
 
   const handleClearCanvas = () => {
-    if (canvasRef.current && 'clear' in canvasRef.current && typeof canvasRef.current.clear === 'function') {
-      canvasRef.current.clear();
+    if (drawingCanvasApiRef.current) { // Use the new ref
+      drawingCanvasApiRef.current.clear();
     }
     setUserDrawingDataUrl(null); // Clear stored image data
     setShowCorrectAnswer(false); // Hide correct answer when clearing
+  };
+
+  const handleUndo = () => {
+    if (drawingCanvasApiRef.current) { // Use the new ref
+      drawingCanvasApiRef.current.undo();
+    }
+  };
+
+  const handleRedo = () => {
+    if (drawingCanvasApiRef.current) { // Use the new ref
+      drawingCanvasApiRef.current.redo();
+    }
+  };
+
+  const handlePenColorChange = (hexColor: string) => {
+    setSelectedPenColor(hexColor);
+    // Always switch to pen tool when a color is chosen
+    handleToolChange('pen'); 
+  };
+
+  const handleToolChange = (tool: 'pen' | 'eraser') => {
+    setSelectedTool(tool);
+    if (drawingCanvasApiRef.current) { // Use the new ref
+      drawingCanvasApiRef.current.setTool(tool);
+    }
   };
 
   const handleNextWord = () => {
@@ -126,8 +253,8 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
       setCurrentWordIndex(prev => prev + 1);
       setShowCorrectAnswer(false);
       setUserDrawingDataUrl(null);
-      if (canvasRef.current && 'clear' in canvasRef.current && typeof canvasRef.current.clear === 'function') {
-        canvasRef.current.clear();
+      if (drawingCanvasApiRef.current) { // Use the new ref
+        drawingCanvasApiRef.current.clear();
       }
     } else {
       setMessage('Bạn đã hoàn thành tất cả các từ trong phạm vi này!');
@@ -144,10 +271,38 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
   }
 
   const totalWordsInLevel = currentHSKData.words.length;
+  const isHSK5or6 = selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6';
+
+  // Conditional class names for full screen
+  const containerClasses = `
+    container mx-auto p-4 md:p-8 bg-blue-100 dark:bg-slate-800 rounded-lg shadow-xl mt-8
+    ${isFullScreen ? 'fixed inset-0 z-50 overflow-auto rounded-none bg-blue-50 dark:bg-slate-950 flex flex-col' : 'max-w-5xl'}
+  `;
+
+  const wordPromptSectionClasses = `
+    bg-blue-200 dark:bg-slate-700 p-6 rounded-lg shadow-inner flex flex-col justify-center min-h-[200px] flex-grow-[0.5]
+    ${isFullScreen ? 'flex-grow md:min-h-0' : ''}
+  `;
+  const mandarinPromptClasses = `
+    text-2xl font-bold text-blue-800 dark:text-blue-200 mb-4 text-center
+    ${isFullScreen ? 'text-5xl' : ''}
+  `;
+  const pinyinClasses = `
+    text-center ${isFullScreen ? 'text-3xl' : 'text-xl'} text-gray-700 dark:text-gray-300 mb-2
+  `;
+  const vietnameseClasses = `
+    text-center ${isFullScreen ? 'text-3xl' : 'text-xl'} text-gray-700 dark:text-gray-300
+  `;
+  const drawingCanvasContainerClasses = `
+    flex flex-col items-center flex-grow
+    ${isFullScreen ? 'flex-grow h-full' : ''}
+  `;
+  const mandarinAnswerClasses = `font-mandarin text-green-800 dark:text-green-200 ${isFullScreen ? 'text-8xl' : 'text-7xl'}`;
+
 
   return (
-    <div className="container mx-auto p-4 md:p-8 bg-blue-100 dark:bg-slate-800 rounded-lg shadow-xl max-w-2xl mt-8">
-      <h2 className="text-3xl font-extrabold text-center text-blue-800 dark:text-blue-300 mb-6">
+    <div ref={practiceAreaRef} className={containerClasses}>
+      <h2 className={`font-extrabold text-center text-blue-800 dark:text-blue-300 mb-6 ${isFullScreen ? 'text-4xl my-4' : 'text-3xl'}`}>
         Luyện chép chính tả: {currentHSKData.label}
       </h2>
 
@@ -204,60 +359,62 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
             </div>
           </div>
 
-          <div className="mb-6 text-center">
-            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">3. Chọn phạm vi tùy chỉnh (tùy chọn):</h3>
-            <div className="flex items-center justify-center gap-2 mb-3">
-              <label htmlFor="custom-start" className="sr-only">Từ</label>
-              <input
-                id="custom-start"
-                type="number"
-                min="1"
-                max={totalWordsInLevel > 0 ? totalWordsInLevel : 1}
-                value={customRangeStart}
-                onChange={(e) => setCustomRangeStart(e.target.value)}
-                placeholder="Từ"
-                className="w-24 p-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-200 text-center"
-                aria-label="Từ số"
-              />
-              <span className="text-gray-700 dark:text-gray-300">-</span>
-              <label htmlFor="custom-end" className="sr-only">Đến</label>
-              <input
-                id="custom-end"
-                type="number"
-                min="1"
-                max={totalWordsInLevel > 0 ? totalWordsInLevel : 1}
-                value={customRangeEnd}
-                onChange={(e) => setCustomRangeEnd(e.target.value)}
-                placeholder="Đến"
-                className="w-24 p-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-200 text-center"
-                aria-label="Đến số"
-              />
+          {!isHSK5or6 && ( // Hide custom range for HSK 5 and HSK 6
+            <div className="mb-6 text-center">
+              <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">3. Chọn phạm vi tùy chỉnh (tùy chọn):</h3>
+              <div className="flex items-center justify-center gap-2 mb-3">
+                <label htmlFor="custom-start" className="sr-only">Từ</label>
+                <input
+                  id="custom-start"
+                  type="number"
+                  min="1"
+                  max={totalWordsInLevel > 0 ? totalWordsInLevel : 1}
+                  value={customRangeStart}
+                  onChange={(e) => setCustomRangeStart(e.target.value)}
+                  placeholder="Từ"
+                  className="w-24 p-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-200 text-center"
+                  aria-label="Từ số"
+                />
+                <span className="text-gray-700 dark:text-gray-300">-</span>
+                <label htmlFor="custom-end" className="sr-only">Đến</label>
+                <input
+                  id="custom-end"
+                  type="number"
+                  min="1"
+                  max={totalWordsInLevel > 0 ? totalWordsInLevel : 1}
+                  value={customRangeEnd}
+                  onChange={(e) => setCustomRangeEnd(e.target.value)}
+                  placeholder="Đến"
+                  className="w-24 p-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:text-gray-200 text-center"
+                  aria-label="Đến số"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  const start = parseInt(customRangeStart);
+                  const end = parseInt(customRangeEnd);
+                  
+                  if (isNaN(start) || isNaN(end) || start < 1 || end < 1 || start > end || start > totalWordsInLevel || end > totalWordsInLevel) {
+                    setMessage('Phạm vi tùy chỉnh không hợp lệ. Vui lòng nhập số hợp lệ trong khoảng từ 1 đến ' + totalWordsInLevel + '.');
+                    setSelectedWordRange(null); // Deselect any previous range
+                    return;
+                  }
+                  setSelectedWordRange({ start, end, label: `Tùy chỉnh: ${start}-${end}` });
+                  setMessage('');
+                }}
+                className={`bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 shadow-md ${
+                  (customRangeStart === '' || customRangeEnd === '' || isNaN(parseInt(customRangeStart)) || isNaN(parseInt(customRangeEnd))) ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={customRangeStart === '' || customRangeEnd === '' || isNaN(parseInt(customRangeStart)) || isNaN(parseInt(customRangeEnd))}
+                aria-label="Áp dụng phạm vi tùy chỉnh"
+              >
+                Áp dụng phạm vi tùy chỉnh
+              </button>
             </div>
-            <button
-              onClick={() => {
-                const start = parseInt(customRangeStart);
-                const end = parseInt(customRangeEnd);
-                
-                if (isNaN(start) || isNaN(end) || start < 1 || end < 1 || start > end || start > totalWordsInLevel || end > totalWordsInLevel) {
-                  setMessage('Phạm vi tùy chỉnh không hợp lệ. Vui lòng nhập số hợp lệ trong khoảng từ 1 đến ' + totalWordsInLevel + '.');
-                  setSelectedWordRange(null); // Deselect any previous range
-                  return;
-                }
-                setSelectedWordRange({ start, end, label: `Tùy chỉnh: ${start}-${end}` });
-                setMessage('');
-              }}
-              className={`bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-200 shadow-md ${
-                (customRangeStart === '' || customRangeEnd === '' || isNaN(parseInt(customRangeStart)) || isNaN(parseInt(customRangeEnd))) ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-              disabled={customRangeStart === '' || customRangeEnd === '' || isNaN(parseInt(customRangeStart)) || isNaN(parseInt(customRangeEnd))}
-              aria-label="Áp dụng phạm vi tùy chỉnh"
-            >
-              Áp dụng phạm vi tùy chỉnh
-            </button>
-          </div>
+          )}
 
           <div className="mb-6 text-center">
-            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">4. Lọc theo chữ Hán (tùy chọn):</h3>
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">{isHSK5or6 ? '3.' : '4.'} Lọc theo chữ Hán (tùy chọn):</h3>
             <input
               type="text"
               value={mandarinFilter}
@@ -285,35 +442,109 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
               Từ {currentWordIndex + 1} / {practiceWords.length}
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
-              {/* Word Prompt Section */}
-              <div className="bg-blue-200 dark:bg-slate-700 p-6 rounded-lg shadow-inner flex flex-col justify-center min-h-[200px]">
-                <h3 className="text-2xl font-bold text-blue-800 dark:text-blue-200 mb-4 text-center">Hãy viết chữ Hán cho từ này:</h3>
+            <div className={`flex flex-col gap-4 ${isFullScreen ? 'flex-grow items-stretch md:flex-row' : 'md:flex-row md:justify-center md:items-start'}`}>
+              {/* LEFT: Drawing Tools (Vertical Palette) */}
+              <div className={`flex flex-row flex-wrap justify-center gap-2 p-2 rounded-lg bg-blue-100 dark:bg-slate-700 shadow-md
+                ${isFullScreen ? 'md:order-1 flex-shrink-0 md:flex-col md:items-start md:justify-start' : 'md:flex-col md:items-start md:justify-start'}
+              `}>
+                {/* Full screen button */}
+                <button
+                  onClick={toggleFullScreen}
+                  className="p-2 rounded-full transition-colors duration-200 bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-600 shadow-md"
+                  title={isFullScreen ? "Thoát toàn màn hình (Esc)" : "Toàn màn hình"}
+                  aria-label={isFullScreen ? "Thoát toàn màn hình" : "Mở toàn màn hình"}
+                >
+                  {isFullScreen ? (
+                    // Exit Full Screen Icon
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15L3.75 20.25M15 9V4.5M15 9H19.5M15 9L20.25 3.75M15 15v4.5M15 15H19.5M15 15L20.25 20.25" />
+                    </svg>
+                  ) : (
+                    // Full Screen Icon
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75v4.5m0-4.5h-4.5m4.5 0L15 9m5.25 16.25v-4.5m0 4.5h-4.5m4.5 0L15 15" />
+                    </svg>
+                  )}
+                </button>
+                {/* Pen Tool Button */}
+                <button
+                  onClick={() => handleToolChange('pen')}
+                  className={`p-2 rounded-full transition-colors duration-200 ${
+                    selectedTool === 'pen'
+                      ? 'bg-blue-500 text-white shadow-md dark:bg-blue-600'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-600'
+                  }`}
+                  title="Bút vẽ"
+                  aria-label="Chọn công cụ bút vẽ"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                  </svg>
+                </button>
+                {/* Pen Color Selector */}
+                {penColors.map((color) => (
+                  <button
+                    key={color.hex}
+                    onClick={() => handlePenColorChange(color.hex)}
+                    className={`w-8 h-8 rounded-full border-2 ${
+                      selectedPenColor === color.hex && selectedTool === 'pen' ? 'border-blue-500 ring-2 ring-blue-300' : 'border-gray-300 dark:border-gray-600'
+                    } transition-all duration-150`}
+                    style={{ backgroundColor: color.hex }}
+                    title={`Màu ${color.name}`}
+                    aria-label={`Chọn màu bút ${color.name}`}
+                    disabled={selectedTool === 'eraser'} // Disable color selection when eraser is active
+                  ></button>
+                ))}
+                {/* Eraser Tool */}
+                <button
+                  onClick={() => handleToolChange('eraser')}
+                  className={`p-2 rounded-full transition-colors duration-200 ${
+                    selectedTool === 'eraser'
+                      ? 'bg-red-500 text-white shadow-md dark:bg-red-600'
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-slate-800 dark:text-gray-200 dark:hover:bg-slate-600'
+                  }`}
+                  title="Tẩy"
+                  aria-label="Chọn công cụ tẩy"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* MIDDLE: Word Prompt Section */}
+              <div className={`${wordPromptSectionClasses} ${isFullScreen ? 'md:order-2 flex-grow-[0.3]' : ''}`}>
+                <h3 className={mandarinPromptClasses}>Hãy viết chữ Hán cho từ này:</h3>
                 {selectedMode === PracticeMode.PINYIN_VIETNAMESE && (
-                  <p className="text-center text-xl text-gray-700 dark:text-gray-300 mb-2">
+                  <p className={pinyinClasses}>
                     <span className="font-semibold">Pinyin:</span> {practiceWords[currentWordIndex].pinyin}
                   </p>
                 )}
-                <p className="text-center text-xl text-gray-700 dark:text-gray-300">
+                <p className={vietnameseClasses}>
                   <span className="font-semibold">Nghĩa Việt:</span> {practiceWords[currentWordIndex].vietnamese}
                 </p>
               </div>
 
-              {/* Drawing Canvas */}
-              <div className="text-center">
+              {/* RIGHT: Drawing Canvas */}
+              <div className={`${drawingCanvasContainerClasses} ${isFullScreen ? 'md:order-3 md:flex-grow-[2]' : ''}`}>
                 <h4 className="font-semibold mb-2 text-gray-800 dark:text-gray-200">Khung vẽ của bạn</h4>
                 <DrawingCanvas
-                  canvasRef={canvasRef}
-                  width={300} // Responsive width handled by CSS, actual drawing resolution
-                  height={300} // Set a fixed height for a square canvas
-                  className="w-full max-w-sm aspect-square border-2 border-dashed border-blue-400 dark:border-blue-600 rounded-md bg-white dark:bg-gray-700 cursor-crosshair touch-none mx-auto"
+                  ref={drawingCanvasApiRef} // Pass the new ref here
+                  width={800} // Base width when not fluid
+                  height={450} // Base height when not fluid
+                  fluid={isFullScreen} // Pass fluid prop based on full screen state
+                  penColor={selectedPenColor}
+                  initialTool={selectedTool}
+                  className="w-full max-w-xl md:max-w-none border-2 border-dashed border-blue-400 dark:border-blue-600 rounded-md bg-white dark:bg-gray-700 cursor-crosshair touch-none mx-auto"
                   onDrawEnd={handleDrawingEnd}
                 />
               </div>
             </div>
 
-            {/* Control Buttons */}
-            <div className="flex flex-wrap justify-center gap-4 mt-8 sticky bottom-0 bg-blue-100 dark:bg-slate-800 py-4 rounded-b-lg shadow-t-lg">
+            {/* Control Buttons (kept at the bottom, sticky) */}
+            <div className={`flex flex-wrap justify-center gap-4 mt-8 py-4 rounded-b-lg shadow-t-lg
+                ${isFullScreen ? 'sticky bottom-0 bg-blue-50 dark:bg-slate-950 flex-shrink-0' : 'bg-blue-100 dark:bg-slate-800'}
+            `}>
               <button
                 onClick={handleShowCorrectAnswer}
                 disabled={!userDrawingDataUrl}
@@ -330,6 +561,21 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
                 Xóa & Viết lại
               </button>
               <button
+                onClick={handleUndo}
+                className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-md"
+                aria-label="Hoàn tác nét vẽ cuối"
+              >
+                Hoàn tác
+              </button>
+              <button
+                onClick={handleRedo}
+                className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-md"
+                aria-label="Khôi phục nét vẽ"
+              >
+                Khôi phục
+              </button>
+              
+              <button
                 onClick={handleNextWord}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-md"
                 aria-label="Từ tiếp theo"
@@ -340,7 +586,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
 
             {/* Correct Answer Display */}
             {showCorrectAnswer && (
-              <div className="mt-8 p-6 bg-green-50 dark:bg-slate-700 rounded-lg shadow-lg">
+              <div className={`mt-8 p-6 bg-green-50 dark:bg-slate-700 rounded-lg shadow-lg ${isFullScreen ? 'max-w-full' : ''}`}>
                 <h4 className="text-2xl font-bold text-green-700 dark:text-green-300 text-center mb-4">Đáp án chính xác:</h4>
                 <div className="flex flex-col md:flex-row items-center justify-center gap-6">
                   {userDrawingDataUrl && (
@@ -351,7 +597,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
                   )}
                   <div className="text-center">
                     <p className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Chữ Hán:</p>
-                    <p className="text-7xl font-mandarin text-green-800 dark:text-green-200">{practiceWords[currentWordIndex].mandarin}</p>
+                    <p className={mandarinAnswerClasses}>{practiceWords[currentWordIndex].mandarin}</p>
                   </div>
                 </div>
               </div>

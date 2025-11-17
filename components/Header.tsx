@@ -3,7 +3,7 @@ import React from 'react';
 
 const Header: React.FC = () => {
   return (
-    <header className="bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 shadow-md">
+    <header className="bg-blue-700 dark:bg-slate-800 text-white p-4 shadow-md">
       <div className="container mx-auto flex items-center justify-between">
         <div className="flex items-center">
           {/* Graduation cap logo for education theme */}

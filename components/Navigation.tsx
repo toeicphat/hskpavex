@@ -17,7 +17,7 @@ const Navigation: React.FC<NavigationProps> = ({
   currentHSKLevel,
 }) => {
   const sections = [
-    { id: Section.HANDWRITING_PRACTICE, label: 'Luyện chép chính tả' },
+    { id: Section.HANDWRITING_PRACTICE, label: 'Ghi nhớ chép chính tả' },
     { id: Section.VOCABULARY_PRACTICE, label: 'Luyện từ vựng' },
   ];
 

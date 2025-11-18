@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HSKWord, PracticeMode, WordRange, HSKLevelData } from '../types';
 import { HSK_LEVELS } from '../hsk-levels';
+import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons'; // New import
 import DrawingCanvas, { DrawingCanvasApiRef } from './DrawingCanvas'; // Updated import
 
 interface HandwritingPracticeProps {
@@ -137,7 +138,10 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
       if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') { // Apply Pinyin ranges for HSK 5 and HSK 6
         // HSK 5 & 6 words are pre-sorted by pinyin
         setDynamicWordRanges(generatePinyinRanges(hskData.words));
-      } else {
+      } else if (selectedHSKLevel === 'TIENG TRUNG 3') { // Apply lesson-based ranges for Tiếng Trung 3
+        setDynamicWordRanges(generateTiengTrung3LessonRanges(hskData.words.length));
+      }
+      else {
         setDynamicWordRanges(generateNumericalRanges(hskData.words.length));
       }
     } else {
@@ -177,7 +181,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
       }
     }
 
-    // Apply range filter (numerical for HSK 1-4, Pinyin-based for HSK 5/6 - both use start/end indices)
+    // Apply range filter (numerical for HSK 1-4, Pinyin-based for HSK 5/6, or lesson-based for Tieng Trung 3 - all use start/end indices)
     // Adjust for 0-based index
     const startIdx = selectedWordRange.start ? selectedWordRange.start - 1 : 0;
     const endIdx = selectedWordRange.end || wordsToFilter.length; // If end is not defined, go to end of list
@@ -271,7 +275,8 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
   }
 
   const totalWordsInLevel = currentHSKData.words.length;
-  const isHSK5or6 = selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6';
+  // Combine conditions for hiding custom range input
+  const hideCustomRange = selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3';
 
   // Conditional class names for full screen
   const containerClasses = `
@@ -359,7 +364,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
             </div>
           </div>
 
-          {!isHSK5or6 && ( // Hide custom range for HSK 5 and HSK 6
+          {!hideCustomRange && ( // Hide custom range for HSK 5, HSK 6, and Tiếng Trung 3
             <div className="mb-6 text-center">
               <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">3. Chọn phạm vi tùy chỉnh (tùy chọn):</h3>
               <div className="flex items-center justify-center gap-2 mb-3">
@@ -414,7 +419,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
           )}
 
           <div className="mb-6 text-center">
-            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">{isHSK5or6 ? '3.' : '4.'} Lọc theo chữ Hán (tùy chọn):</h3>
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">{hideCustomRange ? '3.' : '4.'} Lọc theo chữ Hán (tùy chọn):</h3>
             <input
               type="text"
               value={mandarinFilter}

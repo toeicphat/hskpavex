@@ -1,7 +1,9 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { HSKLevelData, HSKWord, WordRange, VocabularyPracticeMode } from '../types';
 import { HSK_LEVELS } from '../hsk-levels';
+import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons'; // New import
 import FlashcardPractice from './FlashcardPractice';
 import MatchingWordsPractice from './MatchingWordsPractice';
 import QuizPractice from './QuizPractice';
@@ -93,7 +95,10 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
       if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') { // Apply Pinyin ranges for HSK 5 and HSK 6
         // HSK 5 & 6 words are pre-sorted by pinyin
         setDynamicWordRanges(generatePinyinRanges(hskData.words));
-      } else {
+      } else if (selectedHSKLevel === 'TIENG TRUNG 3') { // Apply lesson-based ranges for Tiếng Trung 3
+        setDynamicWordRanges(generateTiengTrung3LessonRanges(hskData.words.length));
+      }
+      else {
         setDynamicWordRanges(generateNumericalRanges(hskData.words.length));
       }
     } else {
@@ -169,7 +174,8 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
   }
 
   const totalWordsInLevel = currentHSKData.words.length;
-  const isHSK5or6 = selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6';
+  // Combine conditions for hiding custom range input
+  const hideCustomRange = selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3';
 
   return (
     <div className="container mx-auto p-4 md:p-8 bg-blue-100 dark:bg-slate-800 rounded-lg shadow-xl max-w-2xl mt-8">
@@ -254,7 +260,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
             </div>
           </div>
 
-          {!isHSK5or6 && ( // Hide custom range input for HSK 5 and HSK 6
+          {!hideCustomRange && ( // Hide custom range input for HSK 5, HSK 6, and Tiếng Trung 3
             <div className="mb-6 text-center">
               <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">3. Chọn phạm vi tùy chỉnh (tùy chọn):</h3>
               <div className="flex items-center justify-center gap-2 mb-3">

@@ -48,7 +48,9 @@ const FillInTheBlanksPractice: React.FC<FillInTheBlanksPracticeProps> = ({ words
   // Function to generate a Chinese sentence with a blank using Gemini API, adjusted by difficulty
   const generateChineseSentence = useCallback(async (word: HSKWord, targetDifficulty: DifficultyLevel): Promise<string | null> => {
     // Instantiate GoogleGenAI right before making the API call
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); 
+const ai = new GoogleGenAI({
+  apiKey: import.meta.env.VITE_GOOGLE_API_KEY
+});
     let generatedSentence: { sentence: string; correct_word: string } | null = null;
     let difficultyGuidance = '';
 

@@ -7,7 +7,7 @@ import { LISTEN_AND_SELECT_WORD_COUNT, LISTEN_AND_SELECT_OPTION_COUNT } from '..
 interface ListenAndSelectPracticeProps {
   words: HSKWord[]; // This is the full list for the selected range (immutable prop)
   autoAdvance: boolean;
-  onPracticeEnd: (message: string) => void;
+  onPracticeEnd: (message: string, isFinal: boolean) => void; // Updated signature
   onGoBack: () => void;
 }
 
@@ -21,11 +21,11 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
   const [options, setOptions] = useState<HSKWord[]>([]); // 9 options for the current question
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null); // mandarin of selected word
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
-  const [score, setScore] = useState<number>(0); // Score for the current turn
+  const [currentTurnScore, setCurrentTurnScore] = useState<number>(0); // Score for the current turn
   const [totalScore, setTotalScore] = useState<number>(0); // Total score across all turns
   const [practiceCompleted, setPracticeCompleted] = useState<boolean>(false); // Overall practice completed
   const [isSpeaking, setIsSpeaking] = useState<boolean>(false);
-  const [message, setMessage] = useState<string>('');
+  const [message, setMessage] = useState<string>(''); // Fix: Declare message state
   const [awaitingCorrectConfirmation, setAwaitingCorrectConfirmation] = useState<boolean>(false); // If user got it wrong, must pick right one to proceed
   const [isTurnComplete, setIsTurnComplete] = useState<boolean>(false); // Indicates if the current 10-word turn is finished
 
@@ -104,17 +104,26 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
     setFeedback(null);
     setAwaitingCorrectConfirmation(false);
     setIsTurnComplete(false); // Reset turn complete state
+    setCurrentQuestionIndex(0);
+    setCurrentTurnScore(0); // Reset score for the current turn
 
     // Determine words for the next turn
     let nextTurnWords: HSKWord[] = [];
     if (poolOfAvailableWords.length === 0 && currentTurnWords.length === 0) { // All words exhausted from previous turns
         setPracticeCompleted(true);
-        onPracticeEnd(`Hoàn thành phần nghe! Bạn đã đạt ${totalScore} / ${words.length} điểm.`);
+        onPracticeEnd(`Hoàn thành phần nghe! Bạn đã đạt ${totalScore} / ${words.length} điểm.`, true);
         return;
-    } else if (poolOfAvailableWords.length < LISTEN_AND_SELECT_WORD_COUNT) {
+    } else if (poolOfAvailableWords.length < LISTEN_AND_SELECT_WORD_COUNT && poolOfAvailableWords.length > 0) {
       // Not enough words for a full new turn. Use remaining words to form a final (smaller) turn.
       nextTurnWords = shuffleArray(poolOfAvailableWords);
       setPoolOfAvailableWords([]); // Clear the pool as all remaining are used
+      setMessage(`Lượt cuối cùng! Chỉ còn ${nextTurnWords.length} từ trong phạm vi này.`);
+    } else if (poolOfAvailableWords.length === 0) {
+      // This case should ideally be caught by `poolOfAvailableWords.length === 0` check above,
+      // but as a safeguard, if somehow an empty turn is attempted.
+      setPracticeCompleted(true);
+      onPracticeEnd(`Hoàn thành phần nghe! Bạn đã đạt ${totalScore} / ${words.length} điểm.`, true);
+      return;
     } else {
       // Enough words for a full turn
       const shuffledCurrentPool = shuffleArray(poolOfAvailableWords);
@@ -122,17 +131,7 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
       setPoolOfAvailableWords(shuffledCurrentPool.slice(LISTEN_AND_SELECT_WORD_COUNT)); // Update remaining pool
     }
 
-    if (nextTurnWords.length === 0) {
-      // This case should ideally be caught by `poolOfAvailableWords.length === 0` check above,
-      // but as a safeguard, if somehow an empty turn is attempted.
-      setPracticeCompleted(true);
-      onPracticeEnd(`Hoàn thành phần nghe! Bạn đã đạt ${totalScore} / ${words.length} điểm.`);
-      return;
-    }
-
     setCurrentTurnWords(nextTurnWords);
-    setCurrentQuestionIndex(0);
-    setScore(0); // Reset score for the current turn
   }, [poolOfAvailableWords, currentTurnWords.length, totalScore, words.length, onPracticeEnd]);
 
 
@@ -141,14 +140,12 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
   // Initial setup when 'words' prop changes (or component mounts)
   useEffect(() => {
     if (words.length === 0) {
-      onPracticeEnd('Không có từ vựng để luyện tập chế độ này. Vui lòng chọn phạm vi từ khác.');
-      // Do NOT set practiceCompleted(true) here, let VocabularyPractice handle returning to selection.
+      onPracticeEnd('Không có từ vựng để luyện tập chế độ này. Vui lòng chọn phạm vi từ khác.', true);
       return;
     }
 
     if (words.length < LISTEN_AND_SELECT_OPTION_COUNT) {
-      onPracticeEnd(`Cần ít nhất ${LISTEN_AND_SELECT_OPTION_COUNT} từ để tạo các tùy chọn cho chế độ "Nghe và Chọn Từ". Vui lòng chọn phạm vi từ vựng lớn hơn.`);
-      // Do NOT set practiceCompleted(true) here, let VocabularyPractice handle returning to selection.
+      onPracticeEnd(`Cần ít nhất ${LISTEN_AND_SELECT_OPTION_COUNT} từ để tạo các tùy chọn cho chế độ "Nghe và Chọn Từ". Vui lòng chọn phạm vi từ vựng lớn hơn.`, true);
       return;
     }
 
@@ -166,7 +163,7 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
   useEffect(() => {
     // Only start a new turn if practice is not completed, there are words in the pool,
     // and `currentTurnWords` is empty (meaning a turn just finished or it's the very first start).
-    if (!practiceCompleted && poolOfAvailableWords.length > 0 && currentTurnWords.length === 0 && !isTurnComplete) {
+    if (!practiceCompleted && (poolOfAvailableWords.length > 0 || currentTurnWords.length > 0) && currentTurnWords.length === 0 && !isTurnComplete) {
         startNewTurn();
     }
   }, [poolOfAvailableWords, currentTurnWords.length, practiceCompleted, startNewTurn, isTurnComplete]);
@@ -222,7 +219,7 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
 
     if (selectedWord.mandarin === currentCorrectWord.mandarin) {
       setFeedback('correct');
-      setScore(prev => prev + 1);
+      setCurrentTurnScore(prev => prev + 1);
       setTotalScore(prev => prev + 1);
       setMessage('Chính xác!');
 
@@ -257,12 +254,12 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
       if (poolOfAvailableWords.length === 0) {
         // All words from the initial range have been processed across all turns
         setPracticeCompleted(true);
-        onPracticeEnd(`Hoàn thành phần nghe! Bạn đã đạt ${totalScore} / ${words.length} điểm.`);
+        onPracticeEnd(`Hoàn thành phần nghe! Bạn đã đạt ${totalScore} / ${words.length} điểm.`, true);
       } else if (autoAdvance) {
         setMessage('Hoàn thành lượt! Bắt đầu lượt mới...');
         setTimeout(() => startNewTurn(), 1500); // Auto-start next turn
       } else {
-        setMessage(`Hoàn thành lượt! Bạn đã đạt ${score} / ${currentTurnWords.length} điểm trong lượt này. Nhấn "Lượt mới" để tiếp tục.`);
+        setMessage(`Hoàn thành lượt! Bạn đã đạt ${currentTurnScore} / ${currentTurnWords.length} điểm trong lượt này. Nhấn "Lượt mới" để tiếp tục.`);
       }
     }
   };
@@ -277,7 +274,7 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
     // Reset everything to start from the beginning of the initial 'words' prop.
     if (words.length === 0 || words.length < LISTEN_AND_SELECT_OPTION_COUNT) {
         // This case should ideally be prevented by parent, but as a safeguard.
-        onPracticeEnd(`Cần ít nhất ${LISTEN_AND_SELECT_OPTION_COUNT} từ để tạo các tùy chọn. Vui lòng chọn phạm vi từ vựng lớn hơn.`);
+        onPracticeEnd(`Cần ít nhất ${LISTEN_AND_SELECT_OPTION_COUNT} từ để tạo các tùy chọn. Vui lòng chọn phạm vi từ vựng lớn hơn.`, true);
         return; // Prevent further execution if words are insufficient
     }
     setPoolOfAvailableWords(shuffleArray(words)); // Reset the pool
@@ -480,7 +477,7 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
               Làm lại
             </button>
             <button
-              onClick={onGoBack}
+              onClick={() => onPracticeEnd('Bạn đã dừng luyện tập Nghe và Chọn Từ.', true)}
               className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-5 rounded-lg transition-colors duration-300 shadow-md"
               aria-label="Quay lại lựa chọn"
             >

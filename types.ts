@@ -14,7 +14,14 @@ export enum VocabularyPracticeMode {
   FLASHCARD = 'FLASHCARD',
   MATCHING_WORDS = 'MATCHING_WORDS',
   QUIZ = 'QUIZ',
-  LISTEN_AND_SELECT = 'LISTEN_AND_SELECT', // New mode
+  LISTEN_AND_SELECT = 'LISTEN_AND_SELECT',
+  FILL_IN_THE_BLANKS = 'FILL_IN_THE_BLANKS',
+}
+
+export enum DifficultyLevel {
+  EASY = 'EASY',
+  MEDIUM = 'MEDIUM',
+  HARD = 'HARD',
 }
 
 export interface WordRange {
@@ -30,6 +37,21 @@ export interface HSKLevelData {
 }
 
 export enum Section {
+  HOME = 'HOME',
   HANDWRITING_PRACTICE = 'HANDWRITING_PRACTICE',
   VOCABULARY_PRACTICE = 'VOCABULARY_PRACTICE',
+  READING_TRANSLATION_PRACTICE = 'READING_TRANSLATION_PRACTICE',
+}
+
+export interface ReadingArticle {
+  id: number;
+  hskLevel: number;
+  title: string;
+  chineseTitle: string;
+  content: string;
+}
+
+export enum ReadingMode {
+  READING = 'READING',
+  TRANSLATION = 'TRANSLATION',
 }

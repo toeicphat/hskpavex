@@ -4,7 +4,8 @@ import { HSKWord } from '../types';
 
 interface FlashcardPracticeProps {
   words: HSKWord[];
-  onPracticeEnd: (message: string) => void;
+  // Fix: Updated onPracticeEnd signature to match the parent's handler
+  onPracticeEnd: (message: string, isFinal: boolean) => void;
   onGoBack: () => void;
 }
 
@@ -35,7 +36,8 @@ const FlashcardPractice: React.FC<FlashcardPracticeProps> = ({ words, onPractice
     if (currentCardIndex < shuffledWords.length - 1) {
       setCurrentCardIndex(prev => prev + 1);
     } else {
-      onPracticeEnd('Bạn đã xem hết tất cả các thẻ từ! Nhấn "Hoàn thành" để quay lại hoặc "Xáo trộn" để luyện tập lại.');
+      // Fix: Added `isFinal: false` to the onPracticeEnd call
+      onPracticeEnd('Bạn đã xem hết tất cả các thẻ từ! Nhấn "Hoàn thành" để quay lại hoặc "Xáo trộn" để luyện tập lại.', false);
     }
   };
 

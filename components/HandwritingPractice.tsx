@@ -1,8 +1,9 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HSKWord, PracticeMode, WordRange, HSKLevelData } from '../types';
 import { HSK_LEVELS } from '../hsk-levels';
-import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons'; // New import
-import DrawingCanvas, { DrawingCanvasApiRef } from './DrawingCanvas'; // Updated import
+import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons';
+import DrawingCanvas, { DrawingCanvasApiRef } from './DrawingCanvas';
 
 interface HandwritingPracticeProps {
   selectedHSKLevel: string;

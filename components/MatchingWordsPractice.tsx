@@ -6,7 +6,7 @@ import { MATCHING_GAME_WORD_COUNT } from '../global-constants';
 interface MatchingWordsPracticeProps {
   words: HSKWord[]; // This is the full list for the selected range (e.g., 30 words)
   autoAdvance: boolean;
-  onPracticeEnd: (message: string) => void;
+  onPracticeEnd: (message: string, isFinal: boolean) => void; // Updated signature
   onGoBack: () => void;
 }
 
@@ -32,7 +32,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
   const [matchedPairs, setMatchedPairs] = useState<string[]>([]); // Array of wordIds that have been matched in current game
   const [attempts, setAttempts] = useState<number>(0);
   const [score, setScore] = useState<number>(0);
-  const [message, setMessage] = useState<string>('');
+  const [message, setMessage] = useState<string>(''); // Fix: Declare message state
   const [allWordsInSelectedRangeUsed, setAllWordsInSelectedRangeUsed] = useState<boolean>(false);
 
   // `words` prop is immutable for the duration of the selected range.
@@ -48,20 +48,43 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
     setScore(0);
     setAllWordsInSelectedRangeUsed(false); // Reset this flag for a new turn setup
 
-    if (poolForThisTurn.length < MATCHING_GAME_WORD_COUNT) {
-      // If the remaining pool is too small to form a full game turn
+    if (poolForThisTurn.length < MATCHING_GAME_WORD_COUNT && poolForThisTurn.length > 0) {
+      // If the remaining pool is too small for a *full* game, but not empty, use all remaining words.
+      const selectedForCurrentTurn = shuffleArray(poolForThisTurn);
+      setGameWords(selectedForCurrentTurn);
+
+      const mandarinItems: MatchingWordItem[] = selectedForCurrentTurn.map((word, index) => ({
+        id: `mandarin-${word.mandarin}-${index}`,
+        type: 'mandarin',
+        value: word.mandarin,
+        wordId: word.mandarin,
+        isMatched: false,
+      }));
+      const vietnameseItems: MatchingWordItem[] = selectedForCurrentTurn.map((word, index) => ({
+        id: `vietnamese-${word.mandarin}-${index}`,
+        type: 'vietnamese',
+        value: word.vietnamese,
+        wordId: word.mandarin,
+        isMatched: false,
+      }));
+      setLeftColumn(shuffleArray(mandarinItems));
+      setRightColumn(shuffleArray(vietnameseItems));
+      setWordsLeftForTurns([]); // All words in the pool are now used for this (smaller) turn
+
+      const msg = `Lượt cuối cùng! Chỉ còn ${poolForThisTurn.length} từ trong phạm vi này.`;
+      setMessage(msg);
+      // Don't set allWordsInSelectedRangeUsed to true yet, wait for completion of this partial turn
+      return;
+    } else if (poolForThisTurn.length === 0) {
       setGameWords([]); // Clear current game words
       setLeftColumn([]);
       setRightColumn([]);
-      // Set a message and signal the end of this session for the selected range
-      const msg = poolForThisTurn.length > 0
-        ? `Chỉ còn ${poolForThisTurn.length} từ trong phạm vi này. Cần ít nhất ${MATCHING_GAME_WORD_COUNT} từ cho một lượt chơi mới. Vui lòng chọn phạm vi từ vựng lớn hơn hoặc chơi lại toàn bộ.`
-        : 'Bạn đã luyện tập tất cả các từ trong phạm vi này!';
-      setMessage(msg);
+      setMessage('Bạn đã luyện tập tất cả các từ trong phạm vi này!');
       setAllWordsInSelectedRangeUsed(true); // Indicate all available words have been used or cannot form a full game
-      // Do NOT call onPracticeEnd here, let useEffect handle full completion.
+      onPracticeEnd(`Tuyệt vời! Bạn đã ghép đúng tất cả các từ trong phạm vi này!`, true); // Final completion
       return;
     }
+
 
     const shuffledPool = shuffleArray(poolForThisTurn);
     const selectedForCurrentTurn = shuffledPool.slice(0, MATCHING_GAME_WORD_COUNT);
@@ -104,29 +127,31 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
       setLeftColumn([]);
       setRightColumn([]);
       setAllWordsInSelectedRangeUsed(true);
-      onPracticeEnd('Không có từ vựng để chơi ghép từ trong phạm vi đã chọn.');
+      onPracticeEnd('Không có từ vựng để chơi ghép từ trong phạm vi đã chọn.', true);
     }
   }, [words, startNewGameTurn, onPracticeEnd]); // Dependencies include `words` and `startNewGameTurn`
 
   // Effect for auto-advancing or ending practice after a game turn is completed
   useEffect(() => {
-    if (matchedPairs.length === MATCHING_GAME_WORD_COUNT && gameWords.length > 0) {
+    if (matchedPairs.length === gameWords.length && gameWords.length > 0) {
       // A game turn has just been successfully completed.
-      if (wordsLeftForTurns.length === 0) {
+      if (wordsLeftForTurns.length === 0 && !allWordsInSelectedRangeUsed) { // Check allWordsInSelectedRangeUsed to prevent duplicate call
         // All words from the initial selection (prop `words`) have now been used across all turns.
         setAllWordsInSelectedRangeUsed(true);
-        onPracticeEnd(`Tuyệt vời! Bạn đã ghép đúng tất cả các từ trong phạm vi này!`);
+        onPracticeEnd(`Tuyệt vời! Bạn đã ghép đúng tất cả các từ trong phạm vi này!`, true); // Final completion
         setMessage('Bạn đã luyện tập tất cả các từ trong phạm vi này!');
       } else if (autoAdvance) {
         setMessage('Tuyệt vời! Chuẩn bị lượt mới...');
+        onPracticeEnd(`Hoàn thành lượt ghép từ. Còn ${wordsLeftForTurns.length} từ còn lại.`, false); // Indicate turn completion, but not final
         setTimeout(() => {
           startNewGameTurn(wordsLeftForTurns); // Start next turn from the remaining pool
         }, 1000); // Shorter delay for auto-advance
       } else {
-        setMessage(`Tuyệt vời! Bạn đã ghép đúng tất cả ${MATCHING_GAME_WORD_COUNT} cặp từ! Nhấn "Lượt mới" để tiếp tục với các từ còn lại hoặc "Hoàn thành".`);
+        setMessage(`Tuyệt vời! Bạn đã ghép đúng tất cả ${gameWords.length} cặp từ! Nhấn "Lượt mới" để tiếp tục với các từ còn lại hoặc "Hoàn thành".`);
+        onPracticeEnd(`Hoàn thành lượt ghép từ. Còn ${wordsLeftForTurns.length} từ còn lại.`, false); // Indicate turn completion, but not final
       }
     }
-  }, [matchedPairs.length, gameWords.length, autoAdvance, startNewGameTurn, onPracticeEnd, wordsLeftForTurns.length]);
+  }, [matchedPairs.length, gameWords.length, autoAdvance, startNewGameTurn, onPracticeEnd, wordsLeftForTurns.length, allWordsInSelectedRangeUsed]);
 
 
   const handleSelect = (item: MatchingWordItem) => {
@@ -179,7 +204,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
       setSelectedRight(null);
       setTimeout(() => setMessage(''), 500); // Briefly show "Ghép sai, thử lại!" message
     }
-  }, [leftColumn, rightColumn, selectedLeft, selectedRight]); // Add dependencies
+  }, []); // Removed unused dependencies
 
   // Function to restart the current turn's words
   const handleRestartCurrentTurn = useCallback(() => {
@@ -245,12 +270,12 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
     <div className="flex flex-col items-center">
       <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-4">Ghép từ</h3>
       {message && (
-        <p className={`text-center mb-4 text-lg font-semibold ${matchedPairs.length === MATCHING_GAME_WORD_COUNT ? 'text-green-600' : (message.includes('sai') ? 'text-red-500' : 'text-blue-500')}`}>
+        <p className={`text-center mb-4 text-lg font-semibold ${matchedPairs.length === gameWords.length ? 'text-green-600' : (message.includes('sai') ? 'text-red-500' : 'text-blue-500')}`}>
           {message}
         </p>
       )}
       <div className="flex justify-around w-full max-w-2xl gap-4 mb-6">
-        <p className="text-lg text-gray-700 dark:text-gray-300">Đã ghép: {matchedPairs.length} / {MATCHING_GAME_WORD_COUNT}</p>
+        <p className="text-lg text-gray-700 dark:text-gray-300">Đã ghép: {matchedPairs.length} / {gameWords.length}</p>
         <p className="text-lg text-gray-700 dark:text-gray-300">Số lần thử: {attempts}</p>
         {/* <p className="text-lg text-gray-700 dark:text-gray-300">Điểm: {score}</p> */}
       </div>
@@ -304,7 +329,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
       </div>
 
       <div className="flex flex-wrap justify-center gap-3 mt-8 w-full max-w-md">
-        {matchedPairs.length < MATCHING_GAME_WORD_COUNT && gameWords.length > 0 && (
+        {matchedPairs.length < gameWords.length && gameWords.length > 0 && (
           <button
             onClick={handleRestartCurrentTurn}
             className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -313,7 +338,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
             Chơi Lại Lượt Này
           </button>
         )}
-        {matchedPairs.length === MATCHING_GAME_WORD_COUNT && !allWordsInSelectedRangeUsed && !autoAdvance && (
+        {matchedPairs.length === gameWords.length && !allWordsInSelectedRangeUsed && !autoAdvance && (
           <button
             onClick={handleStartNextTurn}
             className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
@@ -332,7 +357,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
           </button>
         )}
         <button
-          onClick={onGoBack}
+          onClick={() => onPracticeEnd('Bạn đã dừng luyện tập ghép từ.', true)}
           className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
           aria-label="Hoàn thành"
         >

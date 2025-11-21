@@ -4,132 +4,229 @@ import { HSKWord } from '../types';
 import { QUIZ_WORD_COUNT, QUIZ_OPTION_COUNT } from '../global-constants';
 
 interface QuizPracticeProps {
-  words: HSKWord[];
+  words: HSKWord[]; // This is the full list for the selected range (immutable prop)
   autoAdvance: boolean;
-  onPracticeEnd: (message: string) => void;
+  onPracticeEnd: (message: string, isFinal: boolean) => void; // Updated signature
   onGoBack: () => void;
 }
 
 const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
 const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack }) => {
-  const [quizQuestions, setQuizQuestions] = useState<HSKWord[]>([]);
+  const [poolOfAvailableWords, setPoolOfAvailableWords] = useState<HSKWord[]>([]); // All words from 'words' prop not yet assigned to a turn
+  const [currentTurnQuestions, setCurrentTurnQuestions] = useState<HSKWord[]>([]); // Questions for the current 10-word turn
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [options, setOptions] = useState<HSKWord[]>([]);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null); // Stores Vietnamese meaning of the initially selected answer
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
-  const [score, setScore] = useState<number>(0);
-  const [quizCompleted, setQuizCompleted] = useState<boolean>(false);
+  const [currentTurnScore, setCurrentTurnScore] = useState<number>(0); // Score for the current turn
+  const [totalScore, setTotalScore] = useState<number>(0); // Total score across all turns
+  const [practiceCompleted, setPracticeCompleted] = useState<boolean>(false); // Overall practice completed
   const [isAnswering, setIsAnswering] = useState<boolean>(false); // To prevent multiple clicks while processing
-  const [awaitingCorrectConfirmation, setAwaitingCorrectConfirmation] = useState<boolean>(false); // If user got it wrong, must pick right one to proceed
+  const [isTurnComplete, setIsTurnComplete] = useState<boolean>(false); // Indicates if the current 10-question turn is finished
+  // Fix: Declare message state
+  const [message, setMessage] = useState<string>('');
 
-  const generateQuiz = useCallback(() => {
-    if (words.length < QUIZ_OPTION_COUNT || words.length < QUIZ_WORD_COUNT) {
-      onPracticeEnd(`Cần ít nhất ${Math.max(QUIZ_OPTION_COUNT, QUIZ_WORD_COUNT)} từ để chơi quiz. Vui lòng chọn phạm vi từ vựng lớn hơn.`);
+  // State for Pinyin hiding
+  const [showPinyin, setShowPinyin] = useState<boolean>(false);
+
+  const isInitialMount = useRef(true); // Ref to track initial mount for useEffects
+
+  // Generates questions for a single turn from the `poolOfAvailableWords`
+  const generateQuizTurn = useCallback(() => {
+    if (practiceCompleted) return; // Prevent generating if practice is already completed
+
+    setMessage('');
+    setSelectedAnswer(null);
+    setFeedback(null);
+    setIsTurnComplete(false); // Reset turn complete state for a new turn
+    setCurrentQuestionIndex(0);
+    setCurrentTurnScore(0); // Reset score for the current turn
+    setShowPinyin(false); // Hide Pinyin for new question
+
+    let questionsForThisTurn: HSKWord[] = [];
+    let sourcePool: HSKWord[] = poolOfAvailableWords; // Always draw from the main pool
+
+    if (sourcePool.length === 0) {
+      setPracticeCompleted(true);
+      onPracticeEnd(`Quiz hoàn thành! Bạn đã đạt ${totalScore} / ${words.length} điểm.`, true);
       return;
     }
 
-    const shuffledWords = shuffleArray(words);
-    const selectedQuestions = shuffledWords.slice(0, QUIZ_WORD_COUNT);
-    setQuizQuestions(selectedQuestions);
-    setCurrentQuestionIndex(0);
-    setScore(0);
-    setQuizCompleted(false);
-    setFeedback(null);
-    setSelectedAnswer(null);
-    setIsAnswering(false);
-    setAwaitingCorrectConfirmation(false);
+    // Populate questions for this turn
+    if (sourcePool.length < QUIZ_WORD_COUNT) {
+      questionsForThisTurn = shuffleArray(sourcePool);
+      setPoolOfAvailableWords([]); // Mark all as used from the pool
+      setMessage(`Lượt cuối cùng! Chỉ còn ${questionsForThisTurn.length} từ trong phạm vi này.`);
+    } else {
+      const shuffledCurrentPool = shuffleArray(sourcePool);
+      questionsForThisTurn = shuffledCurrentPool.slice(0, QUIZ_WORD_COUNT);
+      setPoolOfAvailableWords(shuffledCurrentPool.slice(QUIZ_WORD_COUNT)); // Update remaining pool
+    }
+
+    setCurrentTurnQuestions(questionsForThisTurn);
+
+  }, [poolOfAvailableWords, totalScore, words.length, onPracticeEnd, practiceCompleted]);
+
+
+  // Initial setup when 'words' prop changes (or component mounts)
+  useEffect(() => {
+    if (words.length === 0) {
+      onPracticeEnd('Không có từ vựng để chơi quiz trong phạm vi đã chọn.', true);
+      return;
+    }
+
+    if (words.length < QUIZ_OPTION_COUNT) {
+        onPracticeEnd(`Cần ít nhất ${QUIZ_OPTION_COUNT} từ để tạo các tùy chọn cho quiz. Vui lòng chọn phạm vi từ vựng lớn hơn.`, true);
+        return;
+    }
+
+    // Reset all states for a new practice session
+    setPoolOfAvailableWords(shuffleArray(words)); // Initialize pool with all words
+    setTotalScore(0);
+    setPracticeCompleted(false);
+    setMessage('');
+    setIsTurnComplete(false);
+    setCurrentTurnQuestions([]); // Clear to ensure generateQuizTurn is called
+    setShowPinyin(false);
+    isInitialMount.current = true; // Reset initial mount ref
   }, [words, onPracticeEnd]);
 
+  // Effect to start the first turn or next turn when poolOfAvailableWords is ready
   useEffect(() => {
-    generateQuiz();
-  }, [generateQuiz]);
+    if (!practiceCompleted && currentTurnQuestions.length === 0 && !isTurnComplete) {
+      // Ensure there are words to form a turn before attempting to generate.
+      if (poolOfAvailableWords.length > 0) {
+        generateQuizTurn();
+      } else if (isInitialMount.current) {
+        // If it's initial mount and no words in pool (shouldn't happen if `words` prop is valid),
+        // or if `words` length check failed.
+        // This block primarily prevents `generateQuizTurn` if initial conditions aren't met
+        // (e.g., words.length < QUIZ_OPTION_COUNT) and `onPracticeEnd` has already been called.
+      } else {
+        // All words covered.
+        setPracticeCompleted(true);
+        onPracticeEnd(`Quiz hoàn thành! Bạn đã đạt ${totalScore} / ${words.length} điểm.`, true);
+      }
+    }
+     // After initial mount, set the ref to false
+     if (isInitialMount.current) {
+        isInitialMount.current = false;
+    }
+  }, [currentTurnQuestions.length, practiceCompleted, generateQuizTurn, isTurnComplete, poolOfAvailableWords, totalScore, words.length]);
 
+
+  // Effect to set up options for the current question
   useEffect(() => {
-    if (quizQuestions.length > 0 && !quizCompleted) {
-      const currentQuestion = quizQuestions[currentQuestionIndex];
-      const correctOption = currentQuestion;
-
+    if (currentTurnQuestions.length > 0 && currentQuestionIndex < currentTurnQuestions.length && !practiceCompleted && !isTurnComplete) {
+      const currentQuestion = currentTurnQuestions[currentQuestionIndex];
       // Get other words for incorrect options from the entire word list,
       // excluding the current correct answer.
       const incorrectOptionsPool = words.filter(word => word.mandarin !== currentQuestion.mandarin);
       const shuffledIncorrectOptions = shuffleArray(incorrectOptionsPool);
       const chosenIncorrectOptions = shuffledIncorrectOptions.slice(0, QUIZ_OPTION_COUNT - 1);
 
-      const allOptions = shuffleArray([correctOption, ...chosenIncorrectOptions]);
+      const allOptions = shuffleArray([currentQuestion, ...chosenIncorrectOptions]);
       setOptions(allOptions);
 
-      // Reset states for new question if not awaiting confirmation
-      if (!awaitingCorrectConfirmation) {
-        setSelectedAnswer(null);
-        setFeedback(null);
-        setIsAnswering(false);
-      }
+      // Reset states for new question
+      setSelectedAnswer(null);
+      setFeedback(null);
+      setIsAnswering(false);
+      setShowPinyin(false); // Ensure pinyin is hidden for a new question
     }
-  }, [quizQuestions, currentQuestionIndex, quizCompleted, words, awaitingCorrectConfirmation]);
+  }, [currentTurnQuestions, currentQuestionIndex, practiceCompleted, words, isTurnComplete]);
+
 
   const handleAnswer = (vietnameseMeaning: string) => {
-    const currentQuestion = quizQuestions[currentQuestionIndex];
-
-    // If already awaiting correct confirmation, only allow clicking the correct answer
-    if (awaitingCorrectConfirmation) {
-      if (vietnameseMeaning === currentQuestion.vietnamese) {
-        setAwaitingCorrectConfirmation(false);
-        handleNextQuestion();
-      } else {
-        // User clicked a wrong answer again while awaiting confirmation for the correct one
-        // Give subtle vibration for incorrect choice while awaiting correction
-        if (navigator.vibrate) navigator.vibrate(100);
-        return;
-      }
-      return; // Exit after handling confirmation click
-    }
-
-    if (isAnswering && !autoAdvance) return; // Prevent re-answering if not auto-advancing
+    const currentQuestion = currentTurnQuestions[currentQuestionIndex];
+    if (!currentQuestion || isAnswering) return; // Defensive check against undefined currentQuestion or multiple clicks
 
     setIsAnswering(true);
     setSelectedAnswer(vietnameseMeaning);
+    setShowPinyin(true); // Reveal Pinyin after user answers
 
     if (vietnameseMeaning === currentQuestion.vietnamese) {
       setFeedback('correct');
-      setScore(prev => prev + 1);
-      if (autoAdvance) {
-        setTimeout(() => handleNextQuestion(), 1000); // Auto-advance after 1 second
-      } else {
-        // If not auto-advancing, the user will see 'Chính xác!' and manually click 'Câu hỏi tiếp theo'
-      }
+      setCurrentTurnScore(prev => prev + 1);
+      setTotalScore(prev => prev + 1);
+      setMessage('Chính xác!');
     } else {
       setFeedback('incorrect');
-      if (navigator.vibrate && !autoAdvance) { // Vibrate only if not auto-advancing and user needs to correct
-        navigator.vibrate(200);
-      }
-      if (autoAdvance) {
-        setTimeout(() => handleNextQuestion(), 1000); // Auto-advance even on wrong answer if enabled
-      } else {
-        setAwaitingCorrectConfirmation(true); // User must click correct answer to proceed
-      }
+      setMessage('Sai rồi.');
+      if (navigator.vibrate) navigator.vibrate(200); // Vibrate on incorrect answer
     }
+
+    // Auto-advance or allow manual advance after a brief delay for feedback
+    setTimeout(() => {
+        if (autoAdvance) {
+            handleNextQuestion();
+        } else {
+            setIsAnswering(false); // Allow next question button to be clicked
+        }
+    }, autoAdvance ? 1000 : 500); // Shorter delay if manual advance
   };
 
   const handleNextQuestion = () => {
+    // Reset for the next question
     setSelectedAnswer(null);
     setFeedback(null);
     setIsAnswering(false);
-    setAwaitingCorrectConfirmation(false);
+    setMessage('');
+    setShowPinyin(false); // Hide Pinyin for the new question
 
-    if (currentQuestionIndex < quizQuestions.length - 1) {
+    if (currentQuestionIndex < currentTurnQuestions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
     } else {
-      setQuizCompleted(true);
-      onPracticeEnd(`Quiz hoàn thành! Bạn đã đạt ${score} / ${quizQuestions.length} điểm.`);
+      // Current turn completed
+      setIsTurnComplete(true);
+      let finalMessage = '';
+      let isFinalPractice = false;
+
+      // Logic to decide next step after a turn
+      if (poolOfAvailableWords.length === 0) {
+        // All words from the initial selection (prop `words`) have now been used across all turns.
+        finalMessage = `Tuyệt vời! Bạn đã hoàn thành tất cả các từ trong phạm vi này! Bạn đã đạt ${totalScore} / ${words.length} điểm.`;
+        setMessage(finalMessage);
+        setPracticeCompleted(true);
+        isFinalPractice = true;
+        onPracticeEnd(finalMessage, isFinalPractice);
+      } else if (autoAdvance) {
+        // More words in pool, and auto-advance is on
+        finalMessage = `Hoàn thành lượt! Bắt đầu lượt mới...`;
+        setMessage(finalMessage);
+        setTimeout(() => generateQuizTurn(), 1500); // Auto-start next turn
+      } else {
+        // More words in pool, no auto-advance
+        finalMessage = `Hoàn thành lượt! Bạn đã đạt ${currentTurnScore} / ${currentTurnQuestions.length} điểm trong lượt này. Nhấn "Lượt mới" để tiếp tục.`;
+        setMessage(finalMessage);
+      }
     }
   };
 
-  const handleRestartQuiz = () => {
-    generateQuiz();
+  const handleContinueToNextTurn = () => {
+    if (poolOfAvailableWords.length > 0) {
+      generateQuizTurn();
+    }
   };
 
-  if (words.length < QUIZ_WORD_COUNT) {
+  const handleRestartPractice = () => {
+    // Reset everything to start from the beginning of the initial 'words' prop.
+    if (words.length === 0 || words.length < QUIZ_OPTION_COUNT) {
+        onPracticeEnd(`Cần ít nhất ${QUIZ_OPTION_COUNT} từ để tạo các tùy chọn. Vui lòng chọn phạm vi từ vựng lớn hơn.`, true);
+        return;
+    }
+    setPoolOfAvailableWords(shuffleArray(words)); // Reset the pool to original words
+    setTotalScore(0);
+    setPracticeCompleted(false);
+    setMessage('');
+    setIsTurnComplete(false);
+    setCurrentTurnQuestions([]); // Clear to trigger generateQuizTurn via useEffect
+    setShowPinyin(false);
+  };
+
+
+  if (words.length < QUIZ_WORD_COUNT || words.length < QUIZ_OPTION_COUNT) {
       return (
           <div className="text-center p-8 text-red-500">
               {`Cần ít nhất ${Math.max(QUIZ_OPTION_COUNT, QUIZ_WORD_COUNT)} từ để chơi quiz. Vui lòng chọn phạm vi từ vựng lớn hơn.`}
@@ -145,45 +242,43 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
       );
   }
 
-  if (quizQuestions.length === 0 && !quizCompleted) {
+  // Defensive check for currentQuestion to prevent TypeError
+  const currentQuestion = currentTurnQuestions[currentQuestionIndex];
+  if (!currentQuestion && !practiceCompleted && (poolOfAvailableWords.length > 0 || currentTurnQuestions.length === 0)) { // Add currentTurnQuestions.length === 0 for initial load
       return <div className="text-center p-8 text-gray-700 dark:text-gray-300">Đang chuẩn bị quiz...</div>;
   }
   
-  const currentQuestion = quizQuestions[currentQuestionIndex];
-
   return (
     <div className="flex flex-col items-center p-4">
-      {!quizCompleted ? (
+      {!practiceCompleted ? (
         <>
           <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">
-            Câu hỏi {currentQuestionIndex + 1} / {quizQuestions.length}
+            {`Câu hỏi ${currentQuestionIndex + 1} / ${currentTurnQuestions.length} (Tổng: ${totalScore} / ${words.length})`}
           </p>
           <div className="bg-blue-200 dark:bg-slate-700 p-6 rounded-lg shadow-inner mb-6 w-full max-w-md text-center">
             <p className="text-5xl font-bold text-blue-800 dark:text-blue-200 mb-4" lang="zh-Hans">
               {currentQuestion?.mandarin}
             </p>
-            <p className="text-xl text-gray-700 dark:text-gray-300">
-              ({currentQuestion?.pinyin})
-            </p>
+            {showPinyin ? (
+              <p className="text-xl text-gray-700 dark:text-gray-300">
+                ({currentQuestion?.pinyin})
+              </p>
+            ) : (
+              <p className="text-xl text-gray-500 dark:text-gray-400 italic">
+                (Pinyin ẩn)
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-md mb-6">
             {options.map((optionWord, index) => {
-              const isCorrectOption = optionWord.vietnamese === currentQuestion.vietnamese;
+              const isCorrectOption = optionWord.vietnamese === currentQuestion?.vietnamese;
               const isSelected = selectedAnswer === optionWord.vietnamese;
-              const isInitiallyWrongAndSelected = isSelected && !isCorrectOption && feedback === 'incorrect';
 
               let buttonClasses = `p-3 rounded-lg text-lg text-left transition-all duration-200 shadow-md hover:shadow-lg`;
-              let isDisabled = false;
+              let isDisabled = isAnswering || isTurnComplete; // Disable all options while processing first answer or if turn is complete
 
-              if (awaitingCorrectConfirmation) {
-                // If awaiting confirmation, only the correct option is enabled and highlighted
-                isDisabled = !isCorrectOption;
-                buttonClasses += isCorrectOption ? 
-                  ` bg-green-200 text-green-800 dark:bg-green-700 dark:text-green-200 ring-2 ring-green-500 dark:ring-green-400` :
-                  ` bg-blue-100 text-gray-500 dark:bg-slate-700 dark:text-gray-400 cursor-not-allowed opacity-70`;
-              } else if (feedback) { // Feedback is showing (answer was just given)
-                isDisabled = !autoAdvance; // Disable if not auto-advancing
+              if (feedback) { // Feedback is showing (answer was just given)
                 if (isCorrectOption) {
                   buttonClasses += ` bg-green-500 text-white`;
                 } else if (isSelected && !isCorrectOption) {
@@ -193,7 +288,6 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
                 }
               } else { // No feedback yet, user is choosing
                 buttonClasses += ` bg-blue-100 dark:bg-slate-700 text-gray-800 dark:text-gray-200 hover:bg-blue-200 dark:hover:bg-slate-600`;
-                isDisabled = isAnswering; // Disable while processing first answer
               }
 
               return (
@@ -211,36 +305,44 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
             })}
           </div>
 
-          {feedback && !autoAdvance && (
-            <div className="text-center mb-4">
-              <p className={`text-xl font-semibold ${feedback === 'correct' ? 'text-green-600' : 'text-red-500'} mb-2`}>
-                {feedback === 'correct' ? 'Chính xác!' : 'Sai rồi.'}
-              </p>
-              {awaitingCorrectConfirmation ? (
-                <p className="text-lg text-gray-700 dark:text-gray-300">
-                  Hãy nhấn vào đáp án đúng để ghi nhớ và chuyển sang từ tiếp theo
-                </p>
-              ) : (
-                <button
-                  onClick={handleNextQuestion}
-                  className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg transition-colors duration-300 shadow-md"
-                  aria-label="Câu hỏi tiếp theo"
-                >
-                  Câu hỏi tiếp theo
-                </button>
-              )}
-            </div>
+          {message && ( // Show general messages here
+            <p className={`text-center mb-4 text-lg font-semibold ${feedback === 'correct' ? 'text-green-600' : (feedback === 'incorrect' ? 'text-red-500' : 'text-blue-500')}`}>
+              {message}
+            </p>
+          )}
+
+          {/* Buttons for navigation */}
+          {!autoAdvance && !isTurnComplete && feedback && !isAnswering && ( // Show "Next Question" after answer if not auto-advancing
+            <button
+              onClick={handleNextQuestion}
+              className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg transition-colors duration-300 shadow-md"
+              aria-label="Câu hỏi tiếp theo"
+            >
+              Câu hỏi tiếp theo
+            </button>
+          )}
+
+          {isTurnComplete && (poolOfAvailableWords.length > 0) && !autoAdvance && (
+            <button
+              onClick={handleContinueToNextTurn}
+              className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg transition-colors duration-300 shadow-md"
+              aria-label="Lượt mới"
+            >
+              Lượt mới
+            </button>
           )}
         </>
       ) : (
         <div className="text-center p-8 bg-blue-100 dark:bg-slate-700 rounded-lg shadow-lg w-full max-w-md">
-          <h3 className="text-3xl font-bold text-blue-800 dark:text-blue-200 mb-4">Quiz hoàn thành!</h3>
+          <h3 className="text-3xl font-bold text-blue-800 dark:text-blue-200 mb-4">
+            Quiz hoàn thành!
+          </h3>
           <p className="text-2xl text-gray-700 dark:text-gray-300 mb-4">
-            Điểm của bạn: {score} / {quizQuestions.length}
+            Điểm của bạn: {totalScore} / {words.length}
           </p>
           <div className="flex flex-wrap justify-center gap-4">
             <button
-              onClick={handleRestartQuiz}
+              onClick={handleRestartPractice}
               className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-5 rounded-lg transition-colors duration-300 shadow-md"
               aria-label="Làm lại Quiz"
             >

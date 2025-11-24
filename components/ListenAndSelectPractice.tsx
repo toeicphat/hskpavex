@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HSKWord } from '../types';
 import { LISTEN_AND_SELECT_WORD_COUNT, LISTEN_AND_SELECT_OPTION_COUNT } from '../global-constants';
@@ -9,11 +8,12 @@ interface ListenAndSelectPracticeProps {
   autoAdvance: boolean;
   onPracticeEnd: (message: string, isFinal: boolean) => void; // Updated signature
   onGoBack: () => void;
+  onWordResult: (word: HSKWord, isCorrect: boolean) => void;
 }
 
 const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
-const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack }) => {
+const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack, onWordResult }) => {
   const [poolOfAvailableWords, setPoolOfAvailableWords] = useState<HSKWord[]>([]); // All words from 'words' prop not yet assigned to a turn
   const [currentTurnWords, setCurrentTurnWords] = useState<HSKWord[]>([]); // Words for the current 10-word turn
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
@@ -205,7 +205,7 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
         setAwaitingCorrectConfirmation(false);
         setFeedback('correct'); // Temporarily show correct feedback
         setMessage('Chính xác!');
-        setTotalScore(prev => prev + 1); // Only count for total after correctly confirmed
+        // Don't double-count score. It was already marked as incorrect.
         setTimeout(() => handleNextQuestion(), 500); // Shorter delay to proceed
       } else {
         setMessage('Sai rồi. Hãy chọn đáp án đúng để tiếp tục.'); // User still needs to find correct one
@@ -216,8 +216,10 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
 
     // Normal answer attempt
     setSelectedOptionId(selectedWord.mandarin);
+    const isCorrect = selectedWord.mandarin === currentCorrectWord.mandarin;
+    onWordResult(currentCorrectWord, isCorrect);
 
-    if (selectedWord.mandarin === currentCorrectWord.mandarin) {
+    if (isCorrect) {
       setFeedback('correct');
       setCurrentTurnScore(prev => prev + 1);
       setTotalScore(prev => prev + 1);
@@ -239,6 +241,7 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
       }
     }
   };
+
 
   const handleNextQuestion = () => {
     setSelectedOptionId(null);

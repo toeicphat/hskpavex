@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { HSKLevelData, HSKWord, WordRange, VocabularyPracticeMode, DifficultyLevel } from '../types';
 import { HSK_LEVELS } from '../hsk-levels';
@@ -9,6 +8,7 @@ import MatchingWordsPractice from './MatchingWordsPractice';
 import QuizPractice from './QuizPractice';
 import ListenAndSelectPractice from './ListenAndSelectPractice';
 import FillInTheBlanksPractice from './FillInTheBlanksPractice'; // New import
+import * as storageService from '../storageService';
 
 
 interface VocabularyPracticeProps {
@@ -37,6 +37,9 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
   const [dynamicWordRanges, setDynamicWordRanges] = useState<WordRange[]>([]);
   const [customRangeStart, setCustomRangeStart] = useState<string>('');
   const [customRangeEnd, setCustomRangeEnd] = useState<string>('');
+  
+  const [hardWordsCount, setHardWordsCount] = useState(0);
+  const [reviewWordsCount, setReviewWordsCount] = useState(0);
 
   // New state for difficulty selection in FillInTheBlanks mode
   const [selectedUserDifficulty, setSelectedUserDifficulty] = useState<DifficultyLevel>(DifficultyLevel.MEDIUM);
@@ -97,22 +100,39 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
   useEffect(() => {
     const hskData = HSK_LEVELS.find(hsk => hsk.level === selectedHSKLevel);
     setCurrentHSKData(hskData || null);
+
     if (hskData) {
-      if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') { // Apply Pinyin ranges for HSK 5 and HSK 6
-        // HSK 5 & 6 words are pre-sorted by pinyin
-        setDynamicWordRanges(generatePinyinRanges(hskData.words));
-      } else if (selectedHSKLevel === 'TIENG TRUNG 3') { // Apply lesson-based ranges for Tiếng Trung 3
-        setDynamicWordRanges(generateTiengTrung3LessonRanges(hskData.words.length));
+      let baseRanges: WordRange[] = [];
+      if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') {
+        baseRanges = generatePinyinRanges(hskData.words);
+      } else if (selectedHSKLevel === 'TIENG TRUNG 3') {
+        baseRanges = generateTiengTrung3LessonRanges(hskData.words.length);
+      } else {
+        baseRanges = generateNumericalRanges(hskData.words.length);
       }
-      else {
-        setDynamicWordRanges(generateNumericalRanges(hskData.words.length));
+
+      const hardWordsForLevel = storageService.getHardWords(hskData.words);
+      const reviewWordsForLevel = storageService.getReviewWords(hskData.words);
+      setHardWordsCount(hardWordsForLevel.length);
+      setReviewWordsCount(reviewWordsForLevel.length);
+
+      const specialRanges: WordRange[] = [];
+      if (reviewWordsForLevel.length > 0) {
+        specialRanges.push({ start: -2, end: -2, label: `Ôn tập SRS (${reviewWordsForLevel.length})` });
       }
+      if (hardWordsForLevel.length > 0) {
+        specialRanges.push({ start: -1, end: -1, label: `Ôn tập từ khó (${hardWordsForLevel.length})` });
+      }
+
+      setDynamicWordRanges([...specialRanges, ...baseRanges]);
     } else {
-      setDynamicWordRanges([]); // Clear ranges if no data
+      setDynamicWordRanges([]);
     }
+
     // Reset practice state if HSK level changes
     resetPracticeState();
   }, [selectedHSKLevel, generateNumericalRanges, generatePinyinRanges]);
+
 
   const resetPracticeState = () => {
     setSelectedPracticeMode(null);
@@ -129,24 +149,23 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
   const initializePracticeWords = useCallback(() => {
     if (!currentHSKData || !selectedWordRange) {
       setMessage('Vui lòng chọn phạm vi từ vựng.');
-      setPracticeWords([]);
-      return;
+      return [];
+    }
+    
+    // Handle special ranges
+    if (selectedWordRange.label.startsWith('Ôn tập từ khó')) {
+      return storageService.getHardWords(currentHSKData.words);
+    }
+    if (selectedWordRange.label.startsWith('Ôn tập SRS')) {
+      return storageService.getReviewWords(currentHSKData.words);
     }
 
-    let wordsToUse = currentHSKData.words;
-
-    const startIdx = selectedWordRange.start ? selectedWordRange.start - 1 : 0; // Adjust for 0-based index
-    const endIdx = selectedWordRange.end || wordsToUse.length; // If end is not defined, go to end of list
-    const filteredByRange = wordsToUse.slice(startIdx, endIdx);
-
-    if (filteredByRange.length === 0) {
-      setMessage('Không có từ vựng cho phạm vi này. Vui lòng chọn phạm vi khác.');
-      setPracticeWords([]);
-      return;
-    }
-
-    setPracticeWords(filteredByRange);
-    setMessage('');
+    // Handle normal ranges
+    const startIdx = selectedWordRange.start - 1;
+    const endIdx = selectedWordRange.end;
+    const filteredByRange = currentHSKData.words.slice(startIdx, endIdx);
+    
+    return filteredByRange;
   }, [currentHSKData, selectedWordRange]);
 
   const handleStartPractice = () => {
@@ -162,12 +181,30 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
       setMessage('Không có từ vựng cho cấp độ này.');
       return;
     }
+
+    const wordsToPractice = initializePracticeWords();
+
+    if (wordsToPractice.length === 0) {
+      setMessage('Không có từ vựng cho phạm vi này. Vui lòng chọn phạm vi khác.');
+      setPracticeWords([]);
+      return;
+    }
     
-    initializePracticeWords();
-    
+    setPracticeWords(wordsToPractice);
     setIsPracticeStarted(true);
     setMessage('');
   };
+  
+  const handleWordResult = useCallback((word: HSKWord, isCorrect: boolean) => {
+    storageService.updateWordOnResult(word, isCorrect);
+    // If practicing hard words and got it right, unmark it
+    if (selectedWordRange?.label.startsWith('Ôn tập từ khó') && isCorrect) {
+      storageService.markWordAsHard(word, false);
+      // Update count for UI consistency
+      setHardWordsCount(prev => Math.max(0, prev - 1));
+    }
+  }, [selectedWordRange]);
+
 
   // Modified to accept an `isFinal` flag
   const handlePracticeEnd = (feedbackMessage: string, isFinal: boolean) => {
@@ -175,11 +212,21 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
     if (isFinal) {
       setIsPracticeStarted(false);
       setPracticeWords([]); // Clear practice words after session
+       // Refresh counts on final end
+      if (currentHSKData) {
+        setHardWordsCount(storageService.getHardWords(currentHSKData.words).length);
+        setReviewWordsCount(storageService.getReviewWords(currentHSKData.words).length);
+      }
     }
   };
 
   const handleGoBackToSelection = () => {
     resetPracticeState();
+    // Refresh counts on going back
+    if (currentHSKData) {
+        setHardWordsCount(storageService.getHardWords(currentHSKData.words).length);
+        setReviewWordsCount(storageService.getReviewWords(currentHSKData.words).length);
+      }
   };
 
   if (!currentHSKData) {
@@ -446,19 +493,19 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
               )}
 
               {selectedPracticeMode === VocabularyPracticeMode.MATCHING_WORDS && (
-                <MatchingWordsPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} />
+                <MatchingWordsPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} onWordResult={handleWordResult} />
               )}
 
               {selectedPracticeMode === VocabularyPracticeMode.QUIZ && (
-                <QuizPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} />
+                <QuizPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} onWordResult={handleWordResult} />
               )}
 
               {selectedPracticeMode === VocabularyPracticeMode.LISTEN_AND_SELECT && (
-                <ListenAndSelectPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} />
+                <ListenAndSelectPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} onWordResult={handleWordResult} />
               )}
 
               {selectedPracticeMode === VocabularyPracticeMode.FILL_IN_THE_BLANKS && (
-                <FillInTheBlanksPractice words={practiceWords} selectedHSKLevel={selectedHSKLevel} selectedUserDifficulty={selectedUserDifficulty} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} />
+                <FillInTheBlanksPractice words={practiceWords} selectedHSKLevel={selectedHSKLevel} selectedUserDifficulty={selectedUserDifficulty} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} onWordResult={handleWordResult} />
               )}
             </>
           )}

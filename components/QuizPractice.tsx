@@ -8,11 +8,12 @@ interface QuizPracticeProps {
   autoAdvance: boolean;
   onPracticeEnd: (message: string, isFinal: boolean) => void; // Updated signature
   onGoBack: () => void;
+  onWordResult: (word: HSKWord, isCorrect: boolean) => void;
 }
 
 const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
-const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack }) => {
+const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack, onWordResult }) => {
   const [poolOfAvailableWords, setPoolOfAvailableWords] = useState<HSKWord[]>([]); // All words from 'words' prop not yet assigned to a turn
   const [currentTurnQuestions, setCurrentTurnQuestions] = useState<HSKWord[]>([]); // Questions for the current 10-word turn
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
@@ -146,7 +147,10 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
     setSelectedAnswer(vietnameseMeaning);
     setShowPinyin(true); // Reveal Pinyin after user answers
 
-    if (vietnameseMeaning === currentQuestion.vietnamese) {
+    const isCorrect = vietnameseMeaning === currentQuestion.vietnamese;
+    onWordResult(currentQuestion, isCorrect);
+
+    if (isCorrect) {
       setFeedback('correct');
       setCurrentTurnScore(prev => prev + 1);
       setTotalScore(prev => prev + 1);
@@ -226,10 +230,10 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
   };
 
 
-  if (words.length < QUIZ_WORD_COUNT || words.length < QUIZ_OPTION_COUNT) {
+  if (words.length < QUIZ_OPTION_COUNT) {
       return (
           <div className="text-center p-8 text-red-500">
-              {`Cần ít nhất ${Math.max(QUIZ_OPTION_COUNT, QUIZ_WORD_COUNT)} từ để chơi quiz. Vui lòng chọn phạm vi từ vựng lớn hơn.`}
+              {`Cần ít nhất ${QUIZ_OPTION_COUNT} từ để chơi quiz. Vui lòng chọn phạm vi từ vựng lớn hơn.`}
               <div className="mt-4">
                 <button
                   onClick={onGoBack}

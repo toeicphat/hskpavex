@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { HSKWord, DifficultyLevel } from '../types';
 import {
@@ -19,6 +18,7 @@ interface FillInTheBlanksPracticeProps {
   autoAdvance: boolean;
   onPracticeEnd: (message: string, isFinal: boolean) => void;
   onGoBack: () => void;
+  onWordResult: (word: HSKWord, isCorrect: boolean) => void;
 }
 
 // Interface for individual question state within a turn
@@ -34,7 +34,7 @@ interface QuestionState {
 
 const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
-const FillInTheBlanksPractice: React.FC<FillInTheBlanksPracticeProps> = ({ words, selectedHSKLevel, selectedUserDifficulty, autoAdvance, onPracticeEnd, onGoBack }) => {
+const FillInTheBlanksPractice: React.FC<FillInTheBlanksPracticeProps> = ({ words, selectedHSKLevel, selectedUserDifficulty, autoAdvance, onPracticeEnd, onGoBack, onWordResult }) => {
   const [poolOfAvailableWords, setPoolOfAvailableWords] = useState<HSKWord[]>([]);
   const [currentTurnQuestionsData, setCurrentTurnQuestionsData] = useState<QuestionState[]>([]);
   const [currentTurnNumber, setCurrentTurnNumber] = useState<number>(0);
@@ -48,9 +48,7 @@ const FillInTheBlanksPractice: React.FC<FillInTheBlanksPracticeProps> = ({ words
   // Function to generate a Chinese sentence with a blank using Gemini API, adjusted by difficulty
   const generateChineseSentence = useCallback(async (word: HSKWord, targetDifficulty: DifficultyLevel): Promise<string | null> => {
     // Instantiate GoogleGenAI right before making the API call
-const ai = new GoogleGenAI({
-  apiKey: import.meta.env.VITE_GOOGLE_API_KEY
-});
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); 
     let generatedSentence: { sentence: string; correct_word: string } | null = null;
     let difficultyGuidance = '';
 
@@ -282,26 +280,37 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
 
 
   const handleOptionClick = useCallback((questionId: string, selectedWord: HSKWord) => {
-    setCurrentTurnQuestionsData(prevData => {
-      return prevData.map(q => {
-        if (q.id === questionId && !q.isCorrectlyAnswered) { // Only allow interaction if not already correctly answered
-          const isCorrect = selectedWord.mandarin === q.word.mandarin;
-          
-          if (isCorrect) {
-            // If it was incorrect before, and now correct, still add to total score if not already counted.
-            if (q.feedback !== 'correct') { 
-                setTotalScore(prev => prev + 1);
+    let wasAlreadyCorrect = false;
+    
+    const updatedData = currentTurnQuestionsData.map(q => {
+        if (q.id === questionId && !q.isCorrectlyAnswered) { // Only process if not already correct
+            wasAlreadyCorrect = q.feedback === 'correct';
+            const isCorrect = selectedWord.mandarin === q.word.mandarin;
+            onWordResult(q.word, isCorrect); // Report result to parent
+
+            if (isCorrect) {
+                if (!wasAlreadyCorrect) {
+                    setTotalScore(prev => prev + 1);
+                }
+                return { ...q, selectedAnswerMandarin: selectedWord.mandarin, feedback: 'correct', isCorrectlyAnswered: true };
+            } else {
+                if (navigator.vibrate) navigator.vibrate(100);
+                return { ...q, selectedAnswerMandarin: selectedWord.mandarin, feedback: 'incorrect' };
             }
-            return { ...q, selectedAnswerMandarin: selectedWord.mandarin, feedback: 'correct', isCorrectlyAnswered: true };
-          } else {
-            if (navigator.vibrate) navigator.vibrate(100);
-            return { ...q, selectedAnswerMandarin: selectedWord.mandarin, feedback: 'incorrect' };
-          }
         }
         return q;
-      });
     });
-  }, []);
+
+    setCurrentTurnQuestionsData(updatedData);
+
+    const allCorrectNow = updatedData.every(q => q.isCorrectlyAnswered);
+    if (autoAdvance && allCorrectNow) {
+        setTimeout(() => {
+            handleNextTurn();
+        }, 1200);
+    }
+  }, [currentTurnQuestionsData, onWordResult, autoAdvance]);
+
 
   const allQuestionsAnsweredCorrectly = currentTurnQuestionsData.length > 0 && currentTurnQuestionsData.every(q => q.isCorrectlyAnswered);
 
@@ -444,7 +453,7 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
               ))}
             </div>
             
-            {allQuestionsAnsweredCorrectly && (
+            {allQuestionsAnsweredCorrectly && !autoAdvance && (
               <button
                 onClick={handleNextTurn}
                 className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition-colors duration-300 shadow-md"
@@ -455,7 +464,7 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
             )}
           </>
         )
-      }
+      )}
     </div>
   );
 };

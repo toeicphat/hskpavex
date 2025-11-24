@@ -8,19 +8,20 @@ interface MatchingWordsPracticeProps {
   autoAdvance: boolean;
   onPracticeEnd: (message: string, isFinal: boolean) => void; // Updated signature
   onGoBack: () => void;
+  onWordResult: (word: HSKWord, isCorrect: boolean) => void;
 }
 
 interface MatchingWordItem {
   id: string;
   type: 'mandarin' | 'vietnamese';
   value: string;
-  wordId: string; // To link mandarin and vietnamese
+  word: HSKWord; // Keep the original HSKWord object
   isMatched: boolean;
 }
 
 const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
-const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack }) => {
+const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack, onWordResult }) => {
   // `wordsLeftForTurns` tracks the words not yet used across *all* game turns within the current session.
   const [wordsLeftForTurns, setWordsLeftForTurns] = useState<HSKWord[]>([]);
   // `gameWords` holds the specific 10 words for the *current* game turn.
@@ -57,14 +58,14 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
         id: `mandarin-${word.mandarin}-${index}`,
         type: 'mandarin',
         value: word.mandarin,
-        wordId: word.mandarin,
+        word: word,
         isMatched: false,
       }));
       const vietnameseItems: MatchingWordItem[] = selectedForCurrentTurn.map((word, index) => ({
         id: `vietnamese-${word.mandarin}-${index}`,
         type: 'vietnamese',
         value: word.vietnamese,
-        wordId: word.mandarin,
+        word: word,
         isMatched: false,
       }));
       setLeftColumn(shuffleArray(mandarinItems));
@@ -94,7 +95,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
       id: `mandarin-${word.mandarin}-${index}`, // Unique ID for each item
       type: 'mandarin',
       value: word.mandarin,
-      wordId: word.mandarin,
+      word: word,
       isMatched: false,
     }));
 
@@ -102,7 +103,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
       id: `vietnamese-${word.mandarin}-${index}`, // Unique ID for each item
       type: 'vietnamese',
       value: word.vietnamese,
-      wordId: word.mandarin,
+      word: word,
       isMatched: false,
     }));
 
@@ -170,33 +171,36 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
     if (item.type === 'mandarin') {
       setSelectedLeft(item.id);
       if (selectedRight) {
-        checkMatch(item.wordId, rightColumn.find(r => r.id === selectedRight)?.wordId || '');
+        checkMatch(item, rightColumn.find(r => r.id === selectedRight)!);
       }
     } else { // type === 'vietnamese'
       setSelectedRight(item.id);
       if (selectedLeft) {
-        checkMatch(leftColumn.find(l => l.id === selectedLeft)?.wordId || '', item.wordId);
+        checkMatch(leftColumn.find(l => l.id === selectedLeft)!, item);
       }
     }
   };
 
-  const checkMatch = useCallback((mandarinWordId: string, vietnameseWordId: string) => {
+  const checkMatch = useCallback((mandarinItem: MatchingWordItem, vietnameseItem: MatchingWordItem) => {
     setAttempts(prev => prev + 1);
 
-    if (mandarinWordId === vietnameseWordId) {
+    if (mandarinItem.word.mandarin === vietnameseItem.word.mandarin) {
       // Match found
-      setMatchedPairs(prev => [...prev, mandarinWordId]);
+      onWordResult(mandarinItem.word, true); // Report correct result
+      setMatchedPairs(prev => [...prev, mandarinItem.word.mandarin]);
       setScore(prev => prev + 1);
       setMessage('Ghép đúng!');
       // Update columns to mark as matched immediately
-      setLeftColumn(prev => prev.map(item => item.wordId === mandarinWordId ? { ...item, isMatched: true } : item));
-      setRightColumn(prev => prev.map(item => item.wordId === vietnameseWordId ? { ...item, isMatched: true } : item));
+      setLeftColumn(prev => prev.map(item => item.word.mandarin === mandarinItem.word.mandarin ? { ...item, isMatched: true } : item));
+      setRightColumn(prev => prev.map(item => item.word.mandarin === vietnameseItem.word.mandarin ? { ...item, isMatched: true } : item));
       
       // Clear selections for the next attempt immediately
       setSelectedLeft(null);
       setSelectedRight(null);
       setTimeout(() => setMessage(''), 500); // Briefly show "Ghép đúng!" message
     } else {
+        // Mismatch - we don't call onWordResult with 'false' because the user can try again.
+        // The word is only marked incorrect in modes where they have one chance per question.
       setMessage('Ghép sai, thử lại!');
       
       // Clear selections for the next attempt immediately
@@ -204,7 +208,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
       setSelectedRight(null);
       setTimeout(() => setMessage(''), 500); // Briefly show "Ghép sai, thử lại!" message
     }
-  }, []); // Removed unused dependencies
+  }, [onWordResult]);
 
   // Function to restart the current turn's words
   const handleRestartCurrentTurn = useCallback(() => {
@@ -220,7 +224,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
       id: `mandarin-${word.mandarin}-${index}`,
       type: 'mandarin',
       value: word.mandarin,
-      wordId: word.mandarin,
+      word: word,
       isMatched: false,
     }));
 
@@ -228,7 +232,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
       id: `vietnamese-${word.mandarin}-${index}`,
       type: 'vietnamese',
       value: word.vietnamese,
-      wordId: word.mandarin,
+      word: word,
       isMatched: false,
     }));
 

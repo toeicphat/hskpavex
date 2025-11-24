@@ -1,9 +1,11 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HSKWord, PracticeMode, WordRange, HSKLevelData } from '../types';
 import { HSK_LEVELS } from '../hsk-levels';
 import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons';
 import DrawingCanvas, { DrawingCanvasApiRef } from './DrawingCanvas';
+import * as storageService from '../storageService';
 
 interface HandwritingPracticeProps {
   selectedHSKLevel: string;
@@ -18,6 +20,9 @@ const normalizePinyinForGrouping = (pinyin: string): string => {
     .toLowerCase()
     .charAt(0);                   // Get first letter
 };
+
+// FIX: Added shuffleArray utility function to resolve 'Cannot find name' errors.
+const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
 const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLevel }) => {
   const [currentHSKData, setCurrentHSKData] = useState<HSKLevelData | null>(null);
@@ -39,6 +44,8 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
 
   const [selectedPenColor, setSelectedPenColor] = useState<string>('#4299E1'); // Default blue-500
   const [selectedTool, setSelectedTool] = useState<'pen' | 'eraser'>('pen');
+
+  const [isCurrentWordHard, setIsCurrentWordHard] = useState(false);
 
   const penColors = [
     { name: 'Xanh', hex: '#4299E1' },    // Blue-500
@@ -136,17 +143,26 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
     setCurrentHSKData(hskData || null);
 
     if (hskData) {
-      if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') { // Apply Pinyin ranges for HSK 5 and HSK 6
-        // HSK 5 & 6 words are pre-sorted by pinyin
-        setDynamicWordRanges(generatePinyinRanges(hskData.words));
-      } else if (selectedHSKLevel === 'TIENG TRUNG 3') { // Apply lesson-based ranges for Tiếng Trung 3
-        setDynamicWordRanges(generateTiengTrung3LessonRanges(hskData.words.length));
+      let baseRanges: WordRange[] = [];
+      if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') { 
+        baseRanges = generatePinyinRanges(hskData.words);
+      } else if (selectedHSKLevel === 'TIENG TRUNG 3') {
+        baseRanges = generateTiengTrung3LessonRanges(hskData.words.length);
+      } else {
+        baseRanges = generateNumericalRanges(hskData.words.length);
       }
-      else {
-        setDynamicWordRanges(generateNumericalRanges(hskData.words.length));
+
+      const hardWordsForLevel = storageService.getHardWords(hskData.words);
+      if (hardWordsForLevel.length > 0) {
+        setDynamicWordRanges([
+          { start: -1, end: -1, label: `Ôn tập từ khó (${hardWordsForLevel.length})` },
+          ...baseRanges
+        ]);
+      } else {
+        setDynamicWordRanges(baseRanges);
       }
     } else {
-      setDynamicWordRanges([]); // Clear ranges if no data
+      setDynamicWordRanges([]);
     }
 
     // Reset practice state if HSK level changes
@@ -160,45 +176,29 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
     setMessage('');
     setCustomRangeStart('');
     setCustomRangeEnd('');
-    if (drawingCanvasApiRef.current) { // Use the new ref
+    if (drawingCanvasApiRef.current) {
       drawingCanvasApiRef.current.clear();
     }
   }, [selectedHSKLevel, generateNumericalRanges, generatePinyinRanges]);
 
-  const filterWords = useCallback(() => {
-    if (!currentHSKData || !selectedWordRange) {
-      return;
+  const filterAndPrepareWords = useCallback(() => {
+    if (!currentHSKData || !selectedWordRange) return [];
+
+    // Handle special ranges first
+    if (selectedWordRange.label.startsWith('Ôn tập từ khó')) {
+      return shuffleArray(storageService.getHardWords(currentHSKData.words));
     }
-
+    
     let wordsToFilter = currentHSKData.words;
-
-    // Apply Mandarin character filter first
     if (mandarinFilter.trim() !== '') {
       wordsToFilter = wordsToFilter.filter(word => word.mandarin.startsWith(mandarinFilter.trim()));
-      if (wordsToFilter.length === 0) {
-        setMessage('Không tìm thấy từ nào phù hợp với chữ Hán đã nhập.');
-        setPracticeWords([]);
-        return;
-      }
     }
 
-    // Apply range filter (numerical for HSK 1-4, Pinyin-based for HSK 5/6, or lesson-based for Tieng Trung 3 - all use start/end indices)
-    // Adjust for 0-based index
-    const startIdx = selectedWordRange.start ? selectedWordRange.start - 1 : 0;
-    const endIdx = selectedWordRange.end || wordsToFilter.length; // If end is not defined, go to end of list
-
+    const startIdx = selectedWordRange.start - 1;
+    const endIdx = selectedWordRange.end;
     const filteredByRange = wordsToFilter.slice(startIdx, endIdx);
     
-    // Shuffle the filtered words
-    const shuffled = [...filteredByRange].sort(() => Math.random() - 0.5);
-    setPracticeWords(shuffled);
-    setCurrentWordIndex(0);
-    setShowCorrectAnswer(false);
-    setUserDrawingDataUrl(null);
-    setMessage('');
-    if (drawingCanvasApiRef.current) { // Use the new ref
-      drawingCanvasApiRef.current.clear();
-    }
+    return shuffleArray(filteredByRange);
   }, [currentHSKData, selectedWordRange, mandarinFilter]);
 
   const handleStartPractice = () => {
@@ -210,10 +210,42 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
       setMessage('Không có từ vựng cho cấp độ này.');
       return;
     }
-    // Filter words before starting the practice
-    filterWords();
+
+    const preparedWords = filterAndPrepareWords();
+
+    if (preparedWords.length === 0) {
+      setMessage('Không tìm thấy từ nào phù hợp với lựa chọn của bạn.');
+      setPracticeWords([]);
+      return;
+    }
+
+    setPracticeWords(preparedWords);
+    setCurrentWordIndex(0);
+    setShowCorrectAnswer(false);
+    setUserDrawingDataUrl(null);
     setIsPracticeStarted(true);
     setMessage('');
+    if (drawingCanvasApiRef.current) {
+      drawingCanvasApiRef.current.clear();
+    }
+  };
+
+  useEffect(() => {
+    if (isPracticeStarted && practiceWords.length > 0) {
+      const currentWord = practiceWords[currentWordIndex];
+      const wordData = storageService.getWordUserData(currentWord);
+      setIsCurrentWordHard(wordData?.isHardWord || false);
+    }
+  }, [isPracticeStarted, practiceWords, currentWordIndex]);
+
+  const handleToggleHardWord = () => {
+    const currentWord = practiceWords[currentWordIndex];
+    if (!currentWord) return;
+    const newIsHard = !isCurrentWordHard;
+    storageService.markWordAsHard(currentWord, newIsHard);
+    setIsCurrentWordHard(newIsHard);
+    setMessage(newIsHard ? 'Đã thêm vào danh sách từ khó.' : 'Đã xóa khỏi danh sách từ khó.');
+    setTimeout(() => setMessage(''), 2000);
   };
 
   const handleShowCorrectAnswer = () => {
@@ -221,7 +253,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
   };
 
   const handleClearCanvas = () => {
-    if (drawingCanvasApiRef.current) { // Use the new ref
+    if (drawingCanvasApiRef.current) {
       drawingCanvasApiRef.current.clear();
     }
     setUserDrawingDataUrl(null); // Clear stored image data
@@ -229,13 +261,13 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
   };
 
   const handleUndo = () => {
-    if (drawingCanvasApiRef.current) { // Use the new ref
+    if (drawingCanvasApiRef.current) {
       drawingCanvasApiRef.current.undo();
     }
   };
 
   const handleRedo = () => {
-    if (drawingCanvasApiRef.current) { // Use the new ref
+    if (drawingCanvasApiRef.current) {
       drawingCanvasApiRef.current.redo();
     }
   };
@@ -248,7 +280,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
 
   const handleToolChange = (tool: 'pen' | 'eraser') => {
     setSelectedTool(tool);
-    if (drawingCanvasApiRef.current) { // Use the new ref
+    if (drawingCanvasApiRef.current) {
       drawingCanvasApiRef.current.setTool(tool);
     }
   };
@@ -258,7 +290,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
       setCurrentWordIndex(prev => prev + 1);
       setShowCorrectAnswer(false);
       setUserDrawingDataUrl(null);
-      if (drawingCanvasApiRef.current) { // Use the new ref
+      if (drawingCanvasApiRef.current) {
         drawingCanvasApiRef.current.clear();
       }
     } else {
@@ -567,20 +599,16 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
                 Xóa & Viết lại
               </button>
               <button
-                onClick={handleUndo}
-                className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-md"
-                aria-label="Hoàn tác nét vẽ cuối"
+                onClick={handleToggleHardWord}
+                className={`${
+                  isCurrentWordHard
+                    ? 'bg-red-500 hover:bg-red-600'
+                    : 'bg-orange-500 hover:bg-orange-600'
+                } text-white font-bold py-3 px-6 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-md`}
+                aria-label={isCurrentWordHard ? 'Đánh dấu đã nhớ từ này' : 'Đánh dấu chưa nhớ từ này'}
               >
-                Hoàn tác
+                {isCurrentWordHard ? 'Đã nhớ' : 'Chưa nhớ'}
               </button>
-              <button
-                onClick={handleRedo}
-                className="bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-md"
-                aria-label="Khôi phục nét vẽ"
-              >
-                Khôi phục
-              </button>
-              
               <button
                 onClick={handleNextWord}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition-all duration-300 transform hover:scale-105 shadow-md"

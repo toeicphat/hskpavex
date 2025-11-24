@@ -493,19 +493,55 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
               )}
 
               {selectedPracticeMode === VocabularyPracticeMode.MATCHING_WORDS && (
-                <MatchingWordsPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} onWordResult={handleWordResult} />
+                <MatchingWordsPractice 
+                  words={practiceWords} 
+                  autoAdvance={autoAdvance} 
+                  onPracticeEnd={handlePracticeEnd} 
+                  onGoBack={handleGoBackToSelection} 
+                  onWordResult={handleWordResult}
+                  selectedHSKLevel={selectedHSKLevel}
+                  wordRangeLabel={selectedWordRange?.label || ''}
+                />
               )}
 
               {selectedPracticeMode === VocabularyPracticeMode.QUIZ && (
-                <QuizPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} onWordResult={handleWordResult} />
+                <QuizPractice 
+                  words={practiceWords} 
+                  fullVocabulary={currentHSKData.words} // Pass full vocab for distractors
+                  autoAdvance={autoAdvance} 
+                  onPracticeEnd={handlePracticeEnd} 
+                  onGoBack={handleGoBackToSelection} 
+                  onWordResult={handleWordResult}
+                  selectedHSKLevel={selectedHSKLevel}
+                  wordRangeLabel={selectedWordRange?.label || ''}
+                />
               )}
 
               {selectedPracticeMode === VocabularyPracticeMode.LISTEN_AND_SELECT && (
-                <ListenAndSelectPractice words={practiceWords} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} onWordResult={handleWordResult} />
+                <ListenAndSelectPractice 
+                  words={practiceWords} 
+                  fullVocabulary={currentHSKData.words} // Pass full vocab for distractors
+                  autoAdvance={autoAdvance} 
+                  onPracticeEnd={handlePracticeEnd} 
+                  onGoBack={handleGoBackToSelection} 
+                  onWordResult={handleWordResult}
+                  selectedHSKLevel={selectedHSKLevel}
+                  wordRangeLabel={selectedWordRange?.label || ''}
+                />
               )}
 
               {selectedPracticeMode === VocabularyPracticeMode.FILL_IN_THE_BLANKS && (
-                <FillInTheBlanksPractice words={practiceWords} selectedHSKLevel={selectedHSKLevel} selectedUserDifficulty={selectedUserDifficulty} autoAdvance={autoAdvance} onPracticeEnd={handlePracticeEnd} onGoBack={handleGoBackToSelection} onWordResult={handleWordResult} />
+                <FillInTheBlanksPractice 
+                  words={practiceWords} 
+                  fullVocabulary={currentHSKData.words} // Pass full vocab for distractors
+                  selectedHSKLevel={selectedHSKLevel} 
+                  selectedUserDifficulty={selectedUserDifficulty} 
+                  autoAdvance={autoAdvance} 
+                  onPracticeEnd={handlePracticeEnd} 
+                  onGoBack={handleGoBackToSelection} 
+                  onWordResult={handleWordResult}
+                  wordRangeLabel={selectedWordRange?.label || ''}
+                />
               )}
             </>
           )}

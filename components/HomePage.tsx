@@ -1,76 +1,120 @@
 
-import React from 'react';
-import { BookOpenIcon, BrainIcon, UsersIcon, ClockIcon, TrophyIcon, SparklesIcon } from './icons'; 
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Section } from '../types';
+import { HSK_LEVELS } from '../hsk-levels';
+import { BookOpenIcon, BrainIcon, SparklesIcon, TypeIcon } from './icons'; 
 
-const HomePage: React.FC = () => {
+interface HomePageProps {
+  onSelectSection: (section: Section) => void;
+  onSelectHSKLevel: (level: string) => void;
+}
+
+const practiceModules = [
+  {
+    id: Section.HANDWRITING_PRACTICE,
+    title: 'Ghi nhớ chép chính tả',
+    description: 'Luyện viết chữ Hán để cải thiện trí nhớ và độ chính xác.',
+    icon: <TypeIcon className="w-12 h-12 text-indigo-500" />,
+    color: 'indigo',
+  },
+  {
+    id: Section.VOCABULARY_PRACTICE,
+    title: 'Luyện từ vựng',
+    description: 'Củng cố vốn từ qua flashcards, quizzes, ghép từ và nhiều hơn nữa.',
+    icon: <BrainIcon className="w-12 h-12 text-green-500" />,
+    color: 'green',
+  },
+  {
+    id: Section.READING_TRANSLATION_PRACTICE,
+    title: 'Luyện Đọc - Dịch (Thử nghiệm)',
+    description: 'Nâng cao kỹ năng đọc hiểu và dịch thuật qua các bài đọc theo cấp độ.',
+    icon: <BookOpenIcon className="w-12 h-12 text-orange-500" />,
+    color: 'orange',
+  },
+];
+
+const HomePage: React.FC<HomePageProps> = ({ onSelectSection, onSelectHSKLevel }) => {
+  const [activeDropdown, setActiveDropdown] = useState<Section | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const handleDropdownToggle = (sectionId: Section) => {
+    setActiveDropdown(prev => (prev === sectionId ? null : sectionId));
+  };
+
+  const handleLevelSelect = (level: string, sectionId: Section) => {
+    onSelectHSKLevel(level);
+    onSelectSection(sectionId);
+    setActiveDropdown(null);
+  };
+
+  const handleClickOutside = useCallback((event: MouseEvent) => {
+    if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      setActiveDropdown(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [handleClickOutside]);
+
+  const buttonColorClasses: { [key: string]: string } = {
+    indigo: 'bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500',
+    green: 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
+    orange: 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500',
+  };
+
   return (
-    <div className="container mx-auto p-4 md:p-8 bg-gradient-to-br from-blue-50 to-blue-200 dark:from-slate-800 dark:to-slate-900 rounded-lg shadow-2xl max-w-4xl mt-8 animate-fade-in">
-      <h2 className="text-4xl font-extrabold text-center text-blue-800 dark:text-blue-200 mb-6 flex items-center justify-center gap-3">
-        <SparklesIcon className="w-9 h-9 text-yellow-500" />
-        Chào mừng đến với HSK Pavex!
-      </h2>
-      <p className="text-xl text-gray-700 dark:text-gray-300 text-center mb-8 leading-relaxed">
-        Nền tảng luyện thi tiếng Trung HSK hiệu quả và toàn diện.
-        Hãy cùng chúng tôi khám phá phiên bản HSK 3.0 mới nhất!
-      </p>
+    <div className="container mx-auto p-4 md:p-8">
+      <div className="text-center mb-16 animate-fade-in">
+        <h2 className="text-4xl md:text-5xl font-extrabold text-blue-800 dark:text-blue-200 mb-4 flex items-center justify-center gap-3">
+          <SparklesIcon className="w-10 h-10 text-yellow-400" />
+          Chào mừng đến với HSK Pavex!
+        </h2>
+        <p className="text-lg md:text-xl text-gray-700 dark:text-gray-300 max-w-3xl mx-auto leading-relaxed">
+          Nền tảng toàn diện giúp bạn chinh phục kỳ thi HSK 3.0 mới với 9 cấp độ. Luyện tập các kỹ năng Nghe, Nói, Đọc, Viết, và Dịch một cách hiệu quả.
+        </p>
+      </div>
 
-      <div className="space-y-10">
-        <div className="bg-white dark:bg-slate-700 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-          <h3 className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 mb-4 flex items-center gap-2">
-            <BookOpenIcon className="w-7 h-7" /> Giới thiệu về HSK 3.0
-          </h3>
-          <p className="text-gray-700 dark:text-gray-200 leading-relaxed">
-            Kỳ thi Năng lực Hán ngữ (HSK) phiên bản 3.0, dự kiến ra mắt đầy đủ từ giữa đến cuối năm 2026,
-            đánh dấu một bước tiến lớn trong việc đánh giá trình độ tiếng Trung của người học trên toàn thế giới.
-            Phiên bản này được thiết kế để phản ánh chính xác hơn năng lực ngôn ngữ thực tế trong bối cảnh hiện đại.
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-slate-700 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-          <h3 className="text-2xl font-bold text-green-700 dark:text-green-300 mb-4 flex items-center gap-2">
-            <UsersIcon className="w-7 h-7" /> Cấu trúc mới: 9 cấp độ, 3 bậc
-          </h3>
-          <ul className="list-disc list-inside text-gray-700 dark:text-gray-200 space-y-2 leading-relaxed">
-            <li>HSK 3.0 mở rộng từ 6 lên 9 cấp độ, được chia thành 3 bậc chính:</li>
-            <ul className="list-disc list-inside ml-5 space-y-1">
-                <li><span className="font-semibold text-blue-600 dark:text-blue-400">Sơ cấp (HSK 1-3):</span> Tập trung vào giao tiếp cơ bản hàng ngày.</li>
-                <li><span className="font-semibold text-purple-600 dark:text-purple-400">Trung cấp (HSK 4-6):</span> Phát triển kỹ năng giao tiếp trong môi trường phức tạp hơn, học thuật và công việc.</li>
-                <li><span className="font-semibold text-red-600 dark:text-red-400">Cao cấp (HSK 7-9):</span> Đòi hỏi khả năng sử dụng tiếng Trung chuyên sâu, phân tích và diễn đạt ý tưởng phức tạp.</li>
-            </ul>
-          </ul>
-        </div>
-
-        <div className="bg-white dark:bg-slate-700 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-          <h3 className="text-2xl font-bold text-orange-700 dark:text-orange-300 mb-4 flex items-center gap-2">
-            <BrainIcon className="w-7 h-7" /> Ba khía cạnh, Năm năng lực, Bốn kỹ năng
-          </h3>
-          <p className="text-gray-700 dark:text-gray-200 leading-relaxed">
-            HSK 3.0 đánh giá người học dựa trên "Ba khía cạnh" (Ngôn ngữ, Giao tiếp, Văn hóa),
-            "Năm năng lực" (nghe, nói, đọc, viết, dịch - <span className="font-mandarin font-semibold text-lg">听、说、读、写、译</span>),
-            và "Bốn kỹ năng" (nghe, nói, đọc, viết). Điều này đảm bảo một cái nhìn toàn diện về khả năng sử dụng tiếng Trung của thí sinh.
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-slate-700 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-          <h3 className="text-2xl font-bold text-teal-700 dark:text-teal-300 mb-4 flex items-center gap-2">
-            <ClockIcon className="w-7 h-7" /> Danh sách từ vựng và ngữ pháp mới
-          </h3>
-          <p className="text-gray-700 dark:text-gray-200 leading-relaxed">
-            Phiên bản HSK 3.0 giới thiệu danh sách từ vựng (11.092 từ) và ngữ pháp được cập nhật,
-            phản ánh ngôn ngữ hiện đại và đa dạng hơn. Điều này giúp người học tiếp cận tiếng Trung một cách chân thực và hiệu quả.
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-slate-700 p-6 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300">
-          <h3 className="text-2xl font-bold text-red-700 dark:text-red-300 mb-4 flex items-center gap-2">
-            <TrophyIcon className="w-7 h-7" /> Chuẩn bị cùng HSK Pavex!
-          </h3>
-          <p className="text-gray-700 dark:text-gray-200 leading-relaxed">
-            HSK Pavex cung cấp các bài luyện tập viết chữ Hán, luyện từ vựng đa dạng
-            để giúp bạn vững vàng chinh phục các cấp độ HSK, đặc biệt là theo chuẩn HSK 3.0 mới.
-            Hãy bắt đầu hành trình học tiếng Trung của bạn ngay hôm nay!
-          </p>
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-8" ref={dropdownRef}>
+        {practiceModules.map((module) => (
+          <div key={module.id} className="relative bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 flex flex-col items-center text-center">
+            {module.icon}
+            <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mt-4 mb-2">{module.title}</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-6 flex-grow">{module.description}</p>
+            <button
+              onClick={() => handleDropdownToggle(module.id)}
+              className={`w-full text-white font-bold py-3 px-6 rounded-lg text-lg transition-all duration-300 shadow-md focus:outline-none focus:ring-4 ${buttonColorClasses[module.color]}`}
+              aria-haspopup="true"
+              aria-expanded={activeDropdown === module.id}
+            >
+              Bắt đầu Luyện tập
+            </button>
+            {activeDropdown === module.id && (
+              <div
+                className="absolute top-full mt-2 w-56 bg-white dark:bg-slate-700 rounded-md shadow-lg z-20 max-h-64 overflow-y-auto ring-1 ring-black ring-opacity-5"
+                role="menu"
+              >
+                <div className="py-1">
+                  {HSK_LEVELS.map((hsk) => (
+                    <button
+                      key={hsk.level}
+                      onClick={() => handleLevelSelect(hsk.level, module.id)}
+                      className="block w-full text-left px-4 py-2 text-md transition-colors duration-200 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-600 disabled:opacity-50"
+                      role="menuitem"
+                      disabled={hsk.words.length === 0}
+                    >
+                      {hsk.label}
+                      {hsk.words.length === 0 && <span className="ml-2 text-xs opacity-70">(Chưa có)</span>}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   );

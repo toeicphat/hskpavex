@@ -1,7 +1,9 @@
 
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { HSKWord } from '../types';
+import { HSKWord, PracticeSession, PracticeSessionDetail, Section, VocabularyPracticeMode } from '../types';
 import { MATCHING_GAME_WORD_COUNT } from '../global-constants';
+import * as storageService from '../storageService';
 
 interface MatchingWordsPracticeProps {
   words: HSKWord[]; // This is the full list for the selected range (e.g., 30 words)
@@ -9,6 +11,8 @@ interface MatchingWordsPracticeProps {
   onPracticeEnd: (message: string, isFinal: boolean) => void; // Updated signature
   onGoBack: () => void;
   onWordResult: (word: HSKWord, isCorrect: boolean) => void;
+  selectedHSKLevel: string;
+  wordRangeLabel: string;
 }
 
 interface MatchingWordItem {
@@ -21,7 +25,7 @@ interface MatchingWordItem {
 
 const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
-const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack, onWordResult }) => {
+const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack, onWordResult, selectedHSKLevel, wordRangeLabel }) => {
   // `wordsLeftForTurns` tracks the words not yet used across *all* game turns within the current session.
   const [wordsLeftForTurns, setWordsLeftForTurns] = useState<HSKWord[]>([]);
   // `gameWords` holds the specific 10 words for the *current* game turn.
@@ -36,8 +40,27 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
   const [message, setMessage] = useState<string>(''); // Fix: Declare message state
   const [allWordsInSelectedRangeUsed, setAllWordsInSelectedRangeUsed] = useState<boolean>(false);
 
-  // `words` prop is immutable for the duration of the selected range.
-  // We use this as the source for `wordsLeftForTurns` when resetting the full pool.
+  const handleFinalPracticeEnd = useCallback(() => {
+    const finalMessage = `Tuyệt vời! Bạn đã ghép đúng tất cả các từ trong phạm vi này!`;
+    const details: PracticeSessionDetail[] = words.map(word => ({
+      word,
+      isCorrect: true, // In matching, completion implies correctness for all items
+    }));
+
+    const session: PracticeSession = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      section: Section.VOCABULARY_PRACTICE,
+      mode: VocabularyPracticeMode.MATCHING_WORDS,
+      hskLevel: selectedHSKLevel,
+      wordRangeLabel: wordRangeLabel,
+      score: words.length,
+      total: words.length,
+      details: details,
+    };
+    storageService.addPracticeSession(session);
+    onPracticeEnd(finalMessage, true);
+  }, [words, selectedHSKLevel, wordRangeLabel, onPracticeEnd]);
 
   // Function to start a new game turn with a given pool of words
   const startNewGameTurn = useCallback((poolForThisTurn: HSKWord[]) => {
@@ -49,58 +72,30 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
     setScore(0);
     setAllWordsInSelectedRangeUsed(false); // Reset this flag for a new turn setup
 
-    if (poolForThisTurn.length < MATCHING_GAME_WORD_COUNT && poolForThisTurn.length > 0) {
-      // If the remaining pool is too small for a *full* game, but not empty, use all remaining words.
-      const selectedForCurrentTurn = shuffleArray(poolForThisTurn);
-      setGameWords(selectedForCurrentTurn);
-
-      const mandarinItems: MatchingWordItem[] = selectedForCurrentTurn.map((word, index) => ({
-        id: `mandarin-${word.mandarin}-${index}`,
-        type: 'mandarin',
-        value: word.mandarin,
-        word: word,
-        isMatched: false,
-      }));
-      const vietnameseItems: MatchingWordItem[] = selectedForCurrentTurn.map((word, index) => ({
-        id: `vietnamese-${word.mandarin}-${index}`,
-        type: 'vietnamese',
-        value: word.vietnamese,
-        word: word,
-        isMatched: false,
-      }));
-      setLeftColumn(shuffleArray(mandarinItems));
-      setRightColumn(shuffleArray(vietnameseItems));
-      setWordsLeftForTurns([]); // All words in the pool are now used for this (smaller) turn
-
-      const msg = `Lượt cuối cùng! Chỉ còn ${poolForThisTurn.length} từ trong phạm vi này.`;
-      setMessage(msg);
-      // Don't set allWordsInSelectedRangeUsed to true yet, wait for completion of this partial turn
-      return;
-    } else if (poolForThisTurn.length === 0) {
-      setGameWords([]); // Clear current game words
-      setLeftColumn([]);
-      setRightColumn([]);
-      setMessage('Bạn đã luyện tập tất cả các từ trong phạm vi này!');
-      setAllWordsInSelectedRangeUsed(true); // Indicate all available words have been used or cannot form a full game
-      onPracticeEnd(`Tuyệt vời! Bạn đã ghép đúng tất cả các từ trong phạm vi này!`, true); // Final completion
-      return;
+    if (poolForThisTurn.length === 0) {
+        setGameWords([]);
+        setLeftColumn([]);
+        setRightColumn([]);
+        setAllWordsInSelectedRangeUsed(true);
+        handleFinalPracticeEnd(); // Call the centralized end handler
+        return;
     }
 
+    const wordsThisTurn = poolForThisTurn.length < MATCHING_GAME_WORD_COUNT 
+        ? shuffleArray(poolForThisTurn) 
+        : shuffleArray(poolForThisTurn).slice(0, MATCHING_GAME_WORD_COUNT);
+    
+    setGameWords(wordsThisTurn);
 
-    const shuffledPool = shuffleArray(poolForThisTurn);
-    const selectedForCurrentTurn = shuffledPool.slice(0, MATCHING_GAME_WORD_COUNT);
-    setGameWords(selectedForCurrentTurn); // These are the words for the current game turn
-
-    const mandarinItems: MatchingWordItem[] = selectedForCurrentTurn.map((word, index) => ({
-      id: `mandarin-${word.mandarin}-${index}`, // Unique ID for each item
+    const mandarinItems: MatchingWordItem[] = wordsThisTurn.map((word, index) => ({
+      id: `mandarin-${word.mandarin}-${index}`,
       type: 'mandarin',
       value: word.mandarin,
       word: word,
       isMatched: false,
     }));
-
-    const vietnameseItems: MatchingWordItem[] = selectedForCurrentTurn.map((word, index) => ({
-      id: `vietnamese-${word.mandarin}-${index}`, // Unique ID for each item
+    const vietnameseItems: MatchingWordItem[] = wordsThisTurn.map((word, index) => ({
+      id: `vietnamese-${word.mandarin}-${index}`,
       type: 'vietnamese',
       value: word.vietnamese,
       word: word,
@@ -110,12 +105,13 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
     setLeftColumn(shuffleArray(mandarinItems));
     setRightColumn(shuffleArray(vietnameseItems));
 
-    // Update the `wordsLeftForTurns` state by filtering out words used in THIS game turn
-    setWordsLeftForTurns(prevWordsLeft =>
-      prevWordsLeft.filter(word => !selectedForCurrentTurn.includes(word))
-    );
+    setWordsLeftForTurns(prev => prev.filter(word => !wordsThisTurn.find(w => w.mandarin === word.mandarin)));
+    
+    if (poolForThisTurn.length < MATCHING_GAME_WORD_COUNT && poolForThisTurn.length > 0) {
+        setMessage(`Lượt cuối cùng! Chỉ còn ${poolForThisTurn.length} từ.`);
+    }
 
-  }, [onPracticeEnd]); // Dependency: onPracticeEnd for stable reference
+  }, [handleFinalPracticeEnd]);
 
   // Effect to initialize `wordsLeftForTurns` and start the first game turn when `words` prop changes
   useEffect(() => {
@@ -130,16 +126,15 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
       setAllWordsInSelectedRangeUsed(true);
       onPracticeEnd('Không có từ vựng để chơi ghép từ trong phạm vi đã chọn.', true);
     }
-  }, [words, startNewGameTurn, onPracticeEnd]); // Dependencies include `words` and `startNewGameTurn`
+  }, [words, startNewGameTurn, onPracticeEnd]);
 
   // Effect for auto-advancing or ending practice after a game turn is completed
   useEffect(() => {
     if (matchedPairs.length === gameWords.length && gameWords.length > 0) {
       // A game turn has just been successfully completed.
       if (wordsLeftForTurns.length === 0 && !allWordsInSelectedRangeUsed) { // Check allWordsInSelectedRangeUsed to prevent duplicate call
-        // All words from the initial selection (prop `words`) have now been used across all turns.
         setAllWordsInSelectedRangeUsed(true);
-        onPracticeEnd(`Tuyệt vời! Bạn đã ghép đúng tất cả các từ trong phạm vi này!`, true); // Final completion
+        handleFinalPracticeEnd(); // Call the centralized end handler
         setMessage('Bạn đã luyện tập tất cả các từ trong phạm vi này!');
       } else if (autoAdvance) {
         setMessage('Tuyệt vời! Chuẩn bị lượt mới...');
@@ -152,7 +147,7 @@ const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, au
         onPracticeEnd(`Hoàn thành lượt ghép từ. Còn ${wordsLeftForTurns.length} từ còn lại.`, false); // Indicate turn completion, but not final
       }
     }
-  }, [matchedPairs.length, gameWords.length, autoAdvance, startNewGameTurn, onPracticeEnd, wordsLeftForTurns.length, allWordsInSelectedRangeUsed]);
+  }, [matchedPairs.length, gameWords.length, autoAdvance, startNewGameTurn, onPracticeEnd, wordsLeftForTurns.length, allWordsInSelectedRangeUsed, handleFinalPracticeEnd]);
 
 
   const handleSelect = (item: MatchingWordItem) => {

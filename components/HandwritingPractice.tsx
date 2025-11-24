@@ -1,7 +1,8 @@
 
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { HSKWord, PracticeMode, WordRange, HSKLevelData } from '../types';
+import { HSKWord, PracticeMode, WordRange, HSKLevelData, PracticeSession, PracticeSessionDetail, Section } from '../types';
 import { HSK_LEVELS } from '../hsk-levels';
 import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons';
 import DrawingCanvas, { DrawingCanvasApiRef } from './DrawingCanvas';
@@ -295,6 +296,25 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
       }
     } else {
       setMessage('Bạn đã hoàn thành tất cả các từ trong phạm vi này!');
+      
+      const details: PracticeSessionDetail[] = practiceWords.map(word => ({
+        word,
+        isCorrect: true, // For handwriting, "correct" means "completed"
+      }));
+
+      const session: PracticeSession = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        section: Section.HANDWRITING_PRACTICE,
+        mode: 'Chép chính tả',
+        hskLevel: selectedHSKLevel,
+        wordRangeLabel: selectedWordRange?.label || '',
+        score: practiceWords.length,
+        total: practiceWords.length,
+        details: details,
+      };
+      storageService.addPracticeSession(session);
+      
       setIsPracticeStarted(false); // End practice
     }
   };

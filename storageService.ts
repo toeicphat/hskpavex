@@ -1,5 +1,6 @@
 
-import { HSKWord } from './types';
+
+import { HSKWord, PracticeSession } from './types';
 
 // SRS intervals in days. Index corresponds to srsLevel.
 const SRS_INTERVALS_DAYS = [1, 2, 5, 10, 21, 45, 90, 180, 365];
@@ -14,6 +15,7 @@ export interface UserWordData {
 
 export interface UserData {
   wordData: { [mandarinWord: string]: UserWordData };
+  practiceHistory: PracticeSession[];
 }
 
 const STORAGE_KEY = 'pavexHskUserData';
@@ -25,15 +27,19 @@ const loadUserData = (): UserData => {
     const storedData = localStorage.getItem(STORAGE_KEY);
     if (storedData) {
       const parsedData = JSON.parse(storedData);
-      // Basic validation
+      // Basic validation and backward compatibility
       if (parsedData && typeof parsedData.wordData === 'object') {
+        // If practiceHistory doesn't exist, initialize it
+        if (!Array.isArray(parsedData.practiceHistory)) {
+          parsedData.practiceHistory = [];
+        }
         return parsedData;
       }
     }
   } catch (error) {
     console.error("Failed to load user data from localStorage", error);
   }
-  return { wordData: {} };
+  return { wordData: {}, practiceHistory: [] };
 };
 
 const saveUserData = (data: UserData) => {
@@ -141,4 +147,16 @@ export const getReviewWords = (allWords: HSKWord[]): HSKWord[] => {
         }
     }
     return allWords.filter(word => reviewWordMap.has(word.mandarin));
+};
+
+export const addPracticeSession = (session: PracticeSession) => {
+  const userData = loadUserData();
+  // Prepend to keep the list sorted by most recent
+  userData.practiceHistory.unshift(session);
+  saveUserData(userData);
+};
+
+export const getPracticeHistory = (): PracticeSession[] => {
+  const userData = loadUserData();
+  return userData.practiceHistory;
 };

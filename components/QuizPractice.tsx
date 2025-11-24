@@ -1,154 +1,159 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { HSKWord } from '../types';
+import { HSKWord, PracticeSession, PracticeSessionDetail, Section, VocabularyPracticeMode } from '../types';
 import { QUIZ_WORD_COUNT, QUIZ_OPTION_COUNT } from '../global-constants';
+import * as storageService from '../storageService';
 
 interface QuizPracticeProps {
-  words: HSKWord[]; // This is the full list for the selected range (immutable prop)
+  words: HSKWord[]; // This is the list for the selected range (can be small, e.g., hard words)
+  fullVocabulary: HSKWord[]; // This is the full list for the HSK level (for distractors)
   autoAdvance: boolean;
-  onPracticeEnd: (message: string, isFinal: boolean) => void; // Updated signature
+  onPracticeEnd: (message: string, isFinal: boolean) => void;
   onGoBack: () => void;
   onWordResult: (word: HSKWord, isCorrect: boolean) => void;
+  selectedHSKLevel: string;
+  wordRangeLabel: string;
 }
 
 const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
-const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack, onWordResult }) => {
-  const [poolOfAvailableWords, setPoolOfAvailableWords] = useState<HSKWord[]>([]); // All words from 'words' prop not yet assigned to a turn
-  const [currentTurnQuestions, setCurrentTurnQuestions] = useState<HSKWord[]>([]); // Questions for the current 10-word turn
+const QuizPractice: React.FC<QuizPracticeProps> = ({ words, fullVocabulary, autoAdvance, onPracticeEnd, onGoBack, onWordResult, selectedHSKLevel, wordRangeLabel }) => {
+  const [poolOfAvailableWords, setPoolOfAvailableWords] = useState<HSKWord[]>([]);
+  const [currentTurnQuestions, setCurrentTurnQuestions] = useState<HSKWord[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
   const [options, setOptions] = useState<HSKWord[]>([]);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null); // Stores Vietnamese meaning of the initially selected answer
+  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
-  const [currentTurnScore, setCurrentTurnScore] = useState<number>(0); // Score for the current turn
-  const [totalScore, setTotalScore] = useState<number>(0); // Total score across all turns
-  const [practiceCompleted, setPracticeCompleted] = useState<boolean>(false); // Overall practice completed
-  const [isAnswering, setIsAnswering] = useState<boolean>(false); // To prevent multiple clicks while processing
-  const [isTurnComplete, setIsTurnComplete] = useState<boolean>(false); // Indicates if the current 10-question turn is finished
-  // Fix: Declare message state
+  const [currentTurnScore, setCurrentTurnScore] = useState<number>(0);
+  const [totalScore, setTotalScore] = useState<number>(0);
+  const [practiceCompleted, setPracticeCompleted] = useState<boolean>(false);
+  const [isAnswering, setIsAnswering] = useState<boolean>(false);
+  const [isTurnComplete, setIsTurnComplete] = useState<boolean>(false);
   const [message, setMessage] = useState<string>('');
-
-  // State for Pinyin hiding
+  const sessionDetailsRef = useRef<PracticeSessionDetail[]>([]);
   const [showPinyin, setShowPinyin] = useState<boolean>(false);
+  const isInitialMount = useRef(true);
 
-  const isInitialMount = useRef(true); // Ref to track initial mount for useEffects
-
-  // Generates questions for a single turn from the `poolOfAvailableWords`
   const generateQuizTurn = useCallback(() => {
-    if (practiceCompleted) return; // Prevent generating if practice is already completed
+    if (practiceCompleted) return;
 
     setMessage('');
     setSelectedAnswer(null);
     setFeedback(null);
-    setIsTurnComplete(false); // Reset turn complete state for a new turn
+    setIsTurnComplete(false);
     setCurrentQuestionIndex(0);
-    setCurrentTurnScore(0); // Reset score for the current turn
-    setShowPinyin(false); // Hide Pinyin for new question
+    setCurrentTurnScore(0);
+    setShowPinyin(false);
 
     let questionsForThisTurn: HSKWord[] = [];
-    let sourcePool: HSKWord[] = poolOfAvailableWords; // Always draw from the main pool
+    let sourcePool: HSKWord[] = poolOfAvailableWords;
 
     if (sourcePool.length === 0) {
+      const finalMessage = `Quiz hoàn thành! Bạn đã đạt ${totalScore} / ${words.length} điểm.`;
+      const session: PracticeSession = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        section: Section.VOCABULARY_PRACTICE,
+        mode: VocabularyPracticeMode.QUIZ,
+        hskLevel: selectedHSKLevel,
+        wordRangeLabel: wordRangeLabel,
+        score: totalScore,
+        total: words.length,
+        details: sessionDetailsRef.current,
+      };
+      storageService.addPracticeSession(session);
       setPracticeCompleted(true);
-      onPracticeEnd(`Quiz hoàn thành! Bạn đã đạt ${totalScore} / ${words.length} điểm.`, true);
+      onPracticeEnd(finalMessage, true);
       return;
     }
 
-    // Populate questions for this turn
     if (sourcePool.length < QUIZ_WORD_COUNT) {
       questionsForThisTurn = shuffleArray(sourcePool);
-      setPoolOfAvailableWords([]); // Mark all as used from the pool
-      setMessage(`Lượt cuối cùng! Chỉ còn ${questionsForThisTurn.length} từ trong phạm vi này.`);
+      setPoolOfAvailableWords([]);
+      if (words.length > QUIZ_WORD_COUNT) { // Only show "Lượt cuối" if we had multiple turns
+          setMessage(`Lượt cuối cùng! Chỉ còn ${questionsForThisTurn.length} từ trong phạm vi này.`);
+      }
     } else {
       const shuffledCurrentPool = shuffleArray(sourcePool);
       questionsForThisTurn = shuffledCurrentPool.slice(0, QUIZ_WORD_COUNT);
-      setPoolOfAvailableWords(shuffledCurrentPool.slice(QUIZ_WORD_COUNT)); // Update remaining pool
+      setPoolOfAvailableWords(shuffledCurrentPool.slice(QUIZ_WORD_COUNT));
     }
 
     setCurrentTurnQuestions(questionsForThisTurn);
 
-  }, [poolOfAvailableWords, totalScore, words.length, onPracticeEnd, practiceCompleted]);
+  }, [poolOfAvailableWords, totalScore, words.length, onPracticeEnd, practiceCompleted, selectedHSKLevel, wordRangeLabel]);
 
 
-  // Initial setup when 'words' prop changes (or component mounts)
   useEffect(() => {
     if (words.length === 0) {
       onPracticeEnd('Không có từ vựng để chơi quiz trong phạm vi đã chọn.', true);
       return;
     }
 
-    if (words.length < QUIZ_OPTION_COUNT) {
-        onPracticeEnd(`Cần ít nhất ${QUIZ_OPTION_COUNT} từ để tạo các tùy chọn cho quiz. Vui lòng chọn phạm vi từ vựng lớn hơn.`, true);
-        return;
-    }
-
     // Reset all states for a new practice session
-    setPoolOfAvailableWords(shuffleArray(words)); // Initialize pool with all words
+    sessionDetailsRef.current = [];
+    setPoolOfAvailableWords(shuffleArray(words));
     setTotalScore(0);
     setPracticeCompleted(false);
     setMessage('');
     setIsTurnComplete(false);
-    setCurrentTurnQuestions([]); // Clear to ensure generateQuizTurn is called
+    setCurrentTurnQuestions([]);
     setShowPinyin(false);
-    isInitialMount.current = true; // Reset initial mount ref
+    isInitialMount.current = true;
   }, [words, onPracticeEnd]);
 
-  // Effect to start the first turn or next turn when poolOfAvailableWords is ready
   useEffect(() => {
     if (!practiceCompleted && currentTurnQuestions.length === 0 && !isTurnComplete) {
-      // Ensure there are words to form a turn before attempting to generate.
       if (poolOfAvailableWords.length > 0) {
         generateQuizTurn();
       } else if (isInitialMount.current) {
-        // If it's initial mount and no words in pool (shouldn't happen if `words` prop is valid),
-        // or if `words` length check failed.
-        // This block primarily prevents `generateQuizTurn` if initial conditions aren't met
-        // (e.g., words.length < QUIZ_OPTION_COUNT) and `onPracticeEnd` has already been called.
+        // Wait for initial setup
       } else {
-        // All words covered.
-        setPracticeCompleted(true);
-        onPracticeEnd(`Quiz hoàn thành! Bạn đã đạt ${totalScore} / ${words.length} điểm.`, true);
+        generateQuizTurn();
       }
     }
-     // After initial mount, set the ref to false
      if (isInitialMount.current) {
         isInitialMount.current = false;
     }
   }, [currentTurnQuestions.length, practiceCompleted, generateQuizTurn, isTurnComplete, poolOfAvailableWords, totalScore, words.length]);
 
 
-  // Effect to set up options for the current question
   useEffect(() => {
     if (currentTurnQuestions.length > 0 && currentQuestionIndex < currentTurnQuestions.length && !practiceCompleted && !isTurnComplete) {
       const currentQuestion = currentTurnQuestions[currentQuestionIndex];
-      // Get other words for incorrect options from the entire word list,
-      // excluding the current correct answer.
-      const incorrectOptionsPool = words.filter(word => word.mandarin !== currentQuestion.mandarin);
+      
+      // Use fullVocabulary for distractors to allow quizzing even with few words
+      const incorrectOptionsPool = fullVocabulary.filter(word => word.mandarin !== currentQuestion.mandarin);
       const shuffledIncorrectOptions = shuffleArray(incorrectOptionsPool);
       const chosenIncorrectOptions = shuffledIncorrectOptions.slice(0, QUIZ_OPTION_COUNT - 1);
 
       const allOptions = shuffleArray([currentQuestion, ...chosenIncorrectOptions]);
       setOptions(allOptions);
 
-      // Reset states for new question
       setSelectedAnswer(null);
       setFeedback(null);
       setIsAnswering(false);
-      setShowPinyin(false); // Ensure pinyin is hidden for a new question
+      setShowPinyin(false);
     }
-  }, [currentTurnQuestions, currentQuestionIndex, practiceCompleted, words, isTurnComplete]);
+  }, [currentTurnQuestions, currentQuestionIndex, practiceCompleted, fullVocabulary, isTurnComplete]);
 
 
   const handleAnswer = (vietnameseMeaning: string) => {
     const currentQuestion = currentTurnQuestions[currentQuestionIndex];
-    if (!currentQuestion || isAnswering) return; // Defensive check against undefined currentQuestion or multiple clicks
+    if (!currentQuestion || isAnswering) return;
 
     setIsAnswering(true);
     setSelectedAnswer(vietnameseMeaning);
-    setShowPinyin(true); // Reveal Pinyin after user answers
+    setShowPinyin(true);
 
     const isCorrect = vietnameseMeaning === currentQuestion.vietnamese;
     onWordResult(currentQuestion, isCorrect);
+    
+    sessionDetailsRef.current.push({
+      word: currentQuestion,
+      isCorrect: isCorrect,
+      userAnswer: vietnameseMeaning
+    });
 
     if (isCorrect) {
       setFeedback('correct');
@@ -158,52 +163,37 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
     } else {
       setFeedback('incorrect');
       setMessage('Sai rồi.');
-      if (navigator.vibrate) navigator.vibrate(200); // Vibrate on incorrect answer
+      if (navigator.vibrate) navigator.vibrate(200);
     }
 
-    // Auto-advance or allow manual advance after a brief delay for feedback
     setTimeout(() => {
         if (autoAdvance) {
             handleNextQuestion();
         } else {
-            setIsAnswering(false); // Allow next question button to be clicked
+            setIsAnswering(false);
         }
-    }, autoAdvance ? 1000 : 500); // Shorter delay if manual advance
+    }, autoAdvance ? 1000 : 500);
   };
 
   const handleNextQuestion = () => {
-    // Reset for the next question
     setSelectedAnswer(null);
     setFeedback(null);
     setIsAnswering(false);
     setMessage('');
-    setShowPinyin(false); // Hide Pinyin for the new question
+    setShowPinyin(false);
 
     if (currentQuestionIndex < currentTurnQuestions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
     } else {
-      // Current turn completed
       setIsTurnComplete(true);
-      let finalMessage = '';
-      let isFinalPractice = false;
-
-      // Logic to decide next step after a turn
+      
       if (poolOfAvailableWords.length === 0) {
-        // All words from the initial selection (prop `words`) have now been used across all turns.
-        finalMessage = `Tuyệt vời! Bạn đã hoàn thành tất cả các từ trong phạm vi này! Bạn đã đạt ${totalScore} / ${words.length} điểm.`;
-        setMessage(finalMessage);
-        setPracticeCompleted(true);
-        isFinalPractice = true;
-        onPracticeEnd(finalMessage, isFinalPractice);
+        generateQuizTurn();
       } else if (autoAdvance) {
-        // More words in pool, and auto-advance is on
-        finalMessage = `Hoàn thành lượt! Bắt đầu lượt mới...`;
-        setMessage(finalMessage);
-        setTimeout(() => generateQuizTurn(), 1500); // Auto-start next turn
+        setMessage('Hoàn thành lượt! Bắt đầu lượt mới...');
+        setTimeout(() => generateQuizTurn(), 1500);
       } else {
-        // More words in pool, no auto-advance
-        finalMessage = `Hoàn thành lượt! Bạn đã đạt ${currentTurnScore} / ${currentTurnQuestions.length} điểm trong lượt này. Nhấn "Lượt mới" để tiếp tục.`;
-        setMessage(finalMessage);
+        setMessage(`Hoàn thành lượt! Bạn đã đạt ${currentTurnScore} / ${currentTurnQuestions.length} điểm trong lượt này. Nhấn "Lượt mới" để tiếp tục.`);
       }
     }
   };
@@ -215,40 +205,23 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
   };
 
   const handleRestartPractice = () => {
-    // Reset everything to start from the beginning of the initial 'words' prop.
-    if (words.length === 0 || words.length < QUIZ_OPTION_COUNT) {
-        onPracticeEnd(`Cần ít nhất ${QUIZ_OPTION_COUNT} từ để tạo các tùy chọn. Vui lòng chọn phạm vi từ vựng lớn hơn.`, true);
+    if (words.length === 0) {
+        onPracticeEnd('Không có từ vựng để chơi quiz trong phạm vi đã chọn.', true);
         return;
     }
-    setPoolOfAvailableWords(shuffleArray(words)); // Reset the pool to original words
+    sessionDetailsRef.current = [];
+    setPoolOfAvailableWords(shuffleArray(words));
     setTotalScore(0);
     setPracticeCompleted(false);
     setMessage('');
     setIsTurnComplete(false);
-    setCurrentTurnQuestions([]); // Clear to trigger generateQuizTurn via useEffect
+    setCurrentTurnQuestions([]);
     setShowPinyin(false);
   };
 
-
-  if (words.length < QUIZ_OPTION_COUNT) {
-      return (
-          <div className="text-center p-8 text-red-500">
-              {`Cần ít nhất ${QUIZ_OPTION_COUNT} từ để chơi quiz. Vui lòng chọn phạm vi từ vựng lớn hơn.`}
-              <div className="mt-4">
-                <button
-                  onClick={onGoBack}
-                  className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-lg transition-all duration-300"
-                >
-                  Quay lại lựa chọn
-                </button>
-              </div>
-          </div>
-      );
-  }
-
-  // Defensive check for currentQuestion to prevent TypeError
+  // Defensive check for currentQuestion
   const currentQuestion = currentTurnQuestions[currentQuestionIndex];
-  if (!currentQuestion && !practiceCompleted && (poolOfAvailableWords.length > 0 || currentTurnQuestions.length === 0)) { // Add currentTurnQuestions.length === 0 for initial load
+  if (!currentQuestion && !practiceCompleted && (poolOfAvailableWords.length > 0 || currentTurnQuestions.length === 0)) {
       return <div className="text-center p-8 text-gray-700 dark:text-gray-300">Đang chuẩn bị quiz...</div>;
   }
   
@@ -280,9 +253,9 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
               const isSelected = selectedAnswer === optionWord.vietnamese;
 
               let buttonClasses = `p-3 rounded-lg text-lg text-left transition-all duration-200 shadow-md hover:shadow-lg`;
-              let isDisabled = isAnswering || isTurnComplete; // Disable all options while processing first answer or if turn is complete
+              let isDisabled = isAnswering || isTurnComplete;
 
-              if (feedback) { // Feedback is showing (answer was just given)
+              if (feedback) {
                 if (isCorrectOption) {
                   buttonClasses += ` bg-green-500 text-white`;
                 } else if (isSelected && !isCorrectOption) {
@@ -290,7 +263,7 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
                 } else {
                   buttonClasses += ` bg-blue-100 dark:bg-slate-700 text-gray-800 dark:text-gray-200 opacity-70`;
                 }
-              } else { // No feedback yet, user is choosing
+              } else {
                 buttonClasses += ` bg-blue-100 dark:bg-slate-700 text-gray-800 dark:text-gray-200 hover:bg-blue-200 dark:hover:bg-slate-600`;
               }
 
@@ -309,14 +282,13 @@ const QuizPractice: React.FC<QuizPracticeProps> = ({ words, autoAdvance, onPract
             })}
           </div>
 
-          {message && ( // Show general messages here
+          {message && (
             <p className={`text-center mb-4 text-lg font-semibold ${feedback === 'correct' ? 'text-green-600' : (feedback === 'incorrect' ? 'text-red-500' : 'text-blue-500')}`}>
               {message}
             </p>
           )}
 
-          {/* Buttons for navigation */}
-          {!autoAdvance && !isTurnComplete && feedback && !isAnswering && ( // Show "Next Question" after answer if not auto-advancing
+          {!autoAdvance && !isTurnComplete && feedback && !isAnswering && (
             <button
               onClick={handleNextQuestion}
               className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-5 rounded-lg transition-colors duration-300 shadow-md"

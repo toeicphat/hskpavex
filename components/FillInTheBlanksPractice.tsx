@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { HSKWord, DifficultyLevel } from '../types';
+import { HSKWord, DifficultyLevel, PracticeSession, PracticeSessionDetail, Section, VocabularyPracticeMode } from '../types';
 import {
   FILL_IN_THE_BLANKS_WORD_COUNT,
   FILL_IN_THE_BLANKS_OPTION_COUNT,
@@ -8,33 +8,36 @@ import {
   DIFFICULTY_LEVEL_MAP,
   DIFFICULTY_INDEX_TO_LEVEL_MAP,
 } from '../global-constants';
+import * as storageService from '../storageService';
 import { GoogleGenAI, Type } from "@google/genai";
 import { LoadingIcon } from './icons';
 
 interface FillInTheBlanksPracticeProps {
-  words: HSKWord[]; // This is the full list for the selected range (immutable prop)
-  selectedHSKLevel: string; // The currently selected HSK level from parent
-  selectedUserDifficulty: DifficultyLevel; // User's overall difficulty bias from parent
+  words: HSKWord[];
+  fullVocabulary: HSKWord[]; // Full vocab for distractors
+  selectedHSKLevel: string;
+  selectedUserDifficulty: DifficultyLevel;
   autoAdvance: boolean;
   onPracticeEnd: (message: string, isFinal: boolean) => void;
   onGoBack: () => void;
   onWordResult: (word: HSKWord, isCorrect: boolean) => void;
+  wordRangeLabel: string;
 }
 
 // Interface for individual question state within a turn
 interface QuestionState {
-  id: string; // Unique ID for keying in lists
-  word: HSKWord; // The correct word for this question
-  sentence: string | null; // The generated sentence with a blank
-  options: HSKWord[]; // The multiple-choice options
-  selectedAnswerMandarin: string | null; // The mandarin of the user's selected option
-  feedback: 'correct' | 'incorrect' | null; // Feedback for this specific question
-  isCorrectlyAnswered: boolean; // True if the user has correctly answered this question
+  id: string;
+  word: HSKWord;
+  sentence: string | null;
+  options: HSKWord[];
+  selectedAnswerMandarin: string | null;
+  feedback: 'correct' | 'incorrect' | null;
+  isCorrectlyAnswered: boolean;
 }
 
 const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
-const FillInTheBlanksPractice: React.FC<FillInTheBlanksPracticeProps> = ({ words, selectedHSKLevel, selectedUserDifficulty, autoAdvance, onPracticeEnd, onGoBack, onWordResult }) => {
+const FillInTheBlanksPractice: React.FC<FillInTheBlanksPracticeProps> = ({ words, fullVocabulary, selectedHSKLevel, selectedUserDifficulty, autoAdvance, onPracticeEnd, onGoBack, onWordResult, wordRangeLabel }) => {
   const [poolOfAvailableWords, setPoolOfAvailableWords] = useState<HSKWord[]>([]);
   const [currentTurnQuestionsData, setCurrentTurnQuestionsData] = useState<QuestionState[]>([]);
   const [currentTurnNumber, setCurrentTurnNumber] = useState<number>(0);
@@ -42,12 +45,30 @@ const FillInTheBlanksPractice: React.FC<FillInTheBlanksPracticeProps> = ({ words
   const [practiceCompleted, setPracticeCompleted] = useState<boolean>(false);
   const [isLoadingSentences, setIsLoadingSentences] = useState<boolean>(false);
   const [message, setMessage] = useState<string>('');
+  const sessionDetailsRef = useRef<PracticeSessionDetail[]>([]);
 
   const isInitialMount = useRef(true);
 
-  // Function to generate a Chinese sentence with a blank using Gemini API, adjusted by difficulty
+  const handleFinalPracticeEnd = useCallback(() => {
+    const finalMessage = `Hoàn thành phần điền từ! Bạn đã đạt ${totalScore} / ${words.length} điểm.`;
+    const session: PracticeSession = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        section: Section.VOCABULARY_PRACTICE,
+        mode: VocabularyPracticeMode.FILL_IN_THE_BLANKS,
+        hskLevel: selectedHSKLevel,
+        wordRangeLabel: wordRangeLabel,
+        score: totalScore,
+        total: words.length,
+        details: sessionDetailsRef.current,
+    };
+    storageService.addPracticeSession(session);
+    setPracticeCompleted(true);
+    onPracticeEnd(finalMessage, true);
+  }, [totalScore, words.length, selectedHSKLevel, wordRangeLabel, onPracticeEnd]);
+
+
   const generateChineseSentence = useCallback(async (word: HSKWord, targetDifficulty: DifficultyLevel): Promise<string | null> => {
-    // Instantiate GoogleGenAI right before making the API call
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); 
     let generatedSentence: { sentence: string; correct_word: string } | null = null;
     let difficultyGuidance = '';
@@ -113,18 +134,15 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
 
         try {
             const parsedResponse = JSON.parse(text);
-            // Ensure the blank is exactly five underscores, and correct_word matches
             if (parsedResponse.sentence && parsedResponse.correct_word === word.mandarin) {
-                const correctedSentence = parsedResponse.sentence.replace(/_+/g, '_____'); // Ensure exactly five underscores
+                const correctedSentence = parsedResponse.sentence.replace(/_+/g, '_____');
                 generatedSentence = { sentence: correctedSentence, correct_word: word.mandarin };
             } else {
-                console.warn(`Gemini API returned unexpected JSON for word "${word.mandarin}". Expected correct_word "${word.mandarin}", got "${parsedResponse.correct_word}". Raw text:`, text);
-                // If correct_word doesn't match or sentence is malformed, but a blank exists, salvage if possible
                 if (parsedResponse.sentence && parsedResponse.sentence.includes('_')) {
                     const correctedSentence = parsedResponse.sentence.replace(/_+/g, '_____');
-                    generatedSentence = { sentence: correctedSentence, correct_word: word.mandarin }; // Assume the input word is the correct word
+                    generatedSentence = { sentence: correctedSentence, correct_word: word.mandarin };
                 } else {
-                    return null; // Still unable to get a usable sentence
+                    return null;
                 }
             }
         } catch (jsonError) {
@@ -146,6 +164,7 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
   }, []);
 
   const generateOptions = useCallback((correctWord: HSKWord, allWords: HSKWord[]): HSKWord[] => {
+    // Use fullVocabulary (allWords) to find distractors
     const incorrectOptionsPool = allWords.filter(w => w.mandarin !== correctWord.mandarin);
     const shuffledIncorrectOptions = shuffleArray(incorrectOptionsPool);
     const chosenIncorrectOptions = shuffledIncorrectOptions.slice(0, FILL_IN_THE_BLANKS_OPTION_COUNT - 1);
@@ -155,11 +174,10 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
   const startNewTurn = useCallback(async (wordsForThisTurnPool: HSKWord[]) => {
     setMessage('');
     setIsLoadingSentences(true);
-    setCurrentTurnQuestionsData([]); // Clear previous turn's data
+    setCurrentTurnQuestionsData([]);
 
     if (wordsForThisTurnPool.length === 0) {
-        setPracticeCompleted(true);
-        onPracticeEnd(`Hoàn thành phần điền từ! Bạn đã đạt ${totalScore} / ${words.length} điểm.`, true);
+        handleFinalPracticeEnd();
         setIsLoadingSentences(false);
         return;
     }
@@ -167,46 +185,42 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
     let wordsForCurrentTurn: HSKWord[] = [];
     if (wordsForThisTurnPool.length < FILL_IN_THE_BLANKS_WORD_COUNT) {
       wordsForCurrentTurn = shuffleArray(wordsForThisTurnPool);
-      setPoolOfAvailableWords([]); // All remaining words are used
-      setMessage(`Lượt cuối cùng! Chỉ còn ${wordsForCurrentTurn.length} từ trong phạm vi này.`);
+      setPoolOfAvailableWords([]);
+      if (words.length > FILL_IN_THE_BLANKS_WORD_COUNT) {
+          setMessage(`Lượt cuối cùng! Chỉ còn ${wordsForCurrentTurn.length} từ trong phạm vi này.`);
+      }
     } else {
       const shuffledCurrentPool = shuffleArray(wordsForThisTurnPool);
       wordsForCurrentTurn = shuffledCurrentPool.slice(0, FILL_IN_THE_BLANKS_WORD_COUNT);
       setPoolOfAvailableWords(shuffledCurrentPool.slice(FILL_IN_THE_BLANKS_WORD_COUNT));
     }
 
-    // Determine the difficulty distribution for the current HSK level
     const hskDistribution = HSK_DIFFICULTY_DISTRIBUTIONS[selectedHSKLevel];
     if (!hskDistribution) {
         console.error(`No difficulty distribution found for HSK level: ${selectedHSKLevel}`);
         setMessage('Không thể xác định độ khó cho cấp độ HSK này.');
         setIsLoadingSentences(false);
-        setPracticeCompleted(true);
-        onPracticeEnd('Lỗi cài đặt độ khó.', true);
+        handleFinalPracticeEnd();
         return;
     }
 
-    // Create an array of base difficulties for the 10 questions
     const baseDifficultiesForSlots: DifficultyLevel[] = [];
     for (let i = 0; i < hskDistribution.easy; i++) baseDifficultiesForSlots.push(DifficultyLevel.EASY);
     for (let i = 0; i < hskDistribution.medium; i++) baseDifficultiesForSlots.push(DifficultyLevel.MEDIUM);
     for (let i = 0; i < hskDistribution.hard; i++) baseDifficultiesForSlots.push(DifficultyLevel.HARD);
-    shuffleArray(baseDifficultiesForSlots); // Randomize the order of difficulty slots
+    shuffleArray(baseDifficultiesForSlots);
 
-    // Calculate user bias
-    const userBiasIndex = DIFFICULTY_LEVEL_MAP[selectedUserDifficulty] - DIFFICULTY_LEVEL_MAP[DifficultyLevel.MEDIUM]; // -1, 0, or 1
+    const userBiasIndex = DIFFICULTY_LEVEL_MAP[selectedUserDifficulty] - DIFFICULTY_LEVEL_MAP[DifficultyLevel.MEDIUM];
 
     const newQuestions: QuestionState[] = await Promise.all(
       wordsForCurrentTurn.map(async (word, index) => {
-        // Determine the base difficulty for this slot from the shuffled array
-        const baseDifficultyForSlot = baseDifficultiesForSlots[index];
-        // Calculate the effective difficulty for Gemini
+        const baseDifficultyForSlot = baseDifficultiesForSlots[index] || DifficultyLevel.MEDIUM; // Fallback if array shorter
         let effectiveDifficultyIndex = DIFFICULTY_LEVEL_MAP[baseDifficultyForSlot] + userBiasIndex;
-        effectiveDifficultyIndex = Math.max(0, Math.min(2, effectiveDifficultyIndex)); // Clamp to [0, 2]
+        effectiveDifficultyIndex = Math.max(0, Math.min(2, effectiveDifficultyIndex));
         const targetDifficultyLevel = DIFFICULTY_INDEX_TO_LEVEL_MAP[effectiveDifficultyIndex];
 
         const sentence = await generateChineseSentence(word, targetDifficultyLevel);
-        const options = generateOptions(word, words); // Use the full 'words' prop for diverse options
+        const options = generateOptions(word, fullVocabulary); // Use full vocabulary for distractors
         return {
           id: `${word.mandarin}-${currentTurnNumber}-${index}`,
           word,
@@ -219,14 +233,12 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
       })
     );
 
-    // Filter out questions where sentence generation failed
     const validQuestions = newQuestions.filter(q => q.sentence !== null && q.options.length > 0);
 
     if (validQuestions.length === 0) {
       setMessage('Không thể tạo đủ câu hỏi cho lượt này. Vui lòng thử lại hoặc chọn phạm vi từ khác.');
       setIsLoadingSentences(false);
-      setPracticeCompleted(true); // End practice if no valid questions can be generated
-      onPracticeEnd('Không có câu hỏi hợp lệ nào được tạo ra.', true);
+      handleFinalPracticeEnd();
       return;
     }
 
@@ -234,7 +246,7 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
     setCurrentTurnNumber(prev => prev + 1);
     setIsLoadingSentences(false);
     
-  }, [generateChineseSentence, generateOptions, onPracticeEnd, totalScore, words, currentTurnNumber, selectedHSKLevel, selectedUserDifficulty]);
+  }, [generateChineseSentence, generateOptions, words, currentTurnNumber, selectedHSKLevel, selectedUserDifficulty, handleFinalPracticeEnd, fullVocabulary]);
 
 
   useEffect(() => {
@@ -242,60 +254,53 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
       onPracticeEnd('Không có từ vựng để luyện tập chế độ này. Vui lòng chọn phạm vi từ khác.', true);
       return;
     }
-
-    if (words.length < FILL_IN_THE_BLANKS_OPTION_COUNT) {
-      onPracticeEnd(`Cần ít nhất ${FILL_IN_THE_BLANKS_OPTION_COUNT} từ để tạo các tùy chọn cho chế độ "Điền Từ Thích Hợp". Vui lòng chọn phạm vi từ vựng lớn hơn.`, true);
-      return;
-    }
-
+    
+    sessionDetailsRef.current = [];
     setPoolOfAvailableWords(shuffleArray(words));
     setTotalScore(0);
     setPracticeCompleted(false);
     setMessage('');
     setCurrentTurnQuestionsData([]);
     setCurrentTurnNumber(0);
-    isInitialMount.current = true; // Mark as initial mount
-  }, [words, onPracticeEnd, selectedHSKLevel]); // Include selectedHSKLevel in dependencies
+    isInitialMount.current = true;
+  }, [words, onPracticeEnd, selectedHSKLevel]);
 
-  // This effect is for initiating the *first* turn after initial setup, or subsequent turns
   useEffect(() => {
-    // Only attempt to start a turn if:
-    // 1. Practice is not completed
-    // 2. No questions are currently loading
-    // 3. currentTurnQuestionsData is empty (meaning a turn just finished or it's the very first start)
-    // 4. There are words available in the pool to create questions
     if (!practiceCompleted && !isLoadingSentences && currentTurnQuestionsData.length === 0 && poolOfAvailableWords.length > 0) {
         startNewTurn(poolOfAvailableWords);
     } else if (!practiceCompleted && !isLoadingSentences && currentTurnQuestionsData.length === 0 && poolOfAvailableWords.length === 0 && !isInitialMount.current) {
-        // This case means all words have been exhausted and no new turn can be started
-        setPracticeCompleted(true);
-        onPracticeEnd(`Hoàn thành phần điền từ! Bạn đã đạt ${totalScore} / ${words.length} điểm.`, true);
+        handleFinalPracticeEnd();
     }
 
-    // Reset after first effect run (related to mount, not turn start)
     if (isInitialMount.current) {
         isInitialMount.current = false;
     }
-  }, [poolOfAvailableWords, currentTurnQuestionsData.length, practiceCompleted, isLoadingSentences, startNewTurn, words.length, onPracticeEnd, totalScore]);
+  }, [poolOfAvailableWords, currentTurnQuestionsData.length, practiceCompleted, isLoadingSentences, startNewTurn, handleFinalPracticeEnd]);
 
 
   const handleOptionClick = useCallback((questionId: string, selectedWord: HSKWord) => {
     let wasAlreadyCorrect = false;
     
     const updatedData = currentTurnQuestionsData.map(q => {
-        if (q.id === questionId && !q.isCorrectlyAnswered) { // Only process if not already correct
+        if (q.id === questionId && !q.isCorrectlyAnswered) {
             wasAlreadyCorrect = q.feedback === 'correct';
             const isCorrect = selectedWord.mandarin === q.word.mandarin;
-            onWordResult(q.word, isCorrect); // Report result to parent
+            onWordResult(q.word, isCorrect);
+            
+            sessionDetailsRef.current.push({
+              word: q.word,
+              isCorrect,
+              userAnswer: selectedWord.mandarin,
+            });
 
             if (isCorrect) {
                 if (!wasAlreadyCorrect) {
                     setTotalScore(prev => prev + 1);
                 }
-                return { ...q, selectedAnswerMandarin: selectedWord.mandarin, feedback: 'correct', isCorrectlyAnswered: true };
+                return { ...q, selectedAnswerMandarin: selectedWord.mandarin, feedback: 'correct' as 'correct', isCorrectlyAnswered: true };
             } else {
                 if (navigator.vibrate) navigator.vibrate(100);
-                return { ...q, selectedAnswerMandarin: selectedWord.mandarin, feedback: 'incorrect' };
+                return { ...q, selectedAnswerMandarin: selectedWord.mandarin, feedback: 'incorrect' as 'incorrect' };
             }
         }
         return q;
@@ -316,36 +321,32 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
 
   const handleNextTurn = useCallback(() => {
     setMessage('');
-    // Check if there are more words in the pool for the next turn
     if (poolOfAvailableWords.length > 0) {
         startNewTurn(poolOfAvailableWords);
     } else {
-        setPracticeCompleted(true);
-        onPracticeEnd(`Hoàn thành phần điền từ! Bạn đã đạt ${totalScore} / ${words.length} điểm.`, true);
+        handleFinalPracticeEnd();
     }
-  }, [poolOfAvailableWords, startNewTurn, onPracticeEnd, totalScore, words.length]);
+  }, [poolOfAvailableWords, startNewTurn, handleFinalPracticeEnd]);
 
   const handleRestartPractice = useCallback(() => {
-    if (words.length === 0 || words.length < FILL_IN_THE_BLANKS_OPTION_COUNT) {
-      onPracticeEnd(`Cần ít nhất ${FILL_IN_THE_BLANKS_OPTION_COUNT} từ để tạo các tùy chọn. Vui lòng chọn phạm vi từ vựng lớn hơn.`, true);
-      return;
+    if (words.length === 0) {
+        onPracticeEnd('Không có từ vựng để luyện tập chế độ này. Vui lòng chọn phạm vi từ khác.', true);
+        return;
     }
+    sessionDetailsRef.current = [];
     setPoolOfAvailableWords(shuffleArray(words));
     setTotalScore(0);
     setPracticeCompleted(false);
     setMessage('');
     setCurrentTurnQuestionsData([]);
     setCurrentTurnNumber(0);
-    // When restarting, immediately try to start a new turn.
-    // The useEffect will pick this up when currentTurnQuestionsData is empty.
   }, [words, onPracticeEnd]);
 
 
-  // Handle edge case where initial words array is empty or too small
-  if (words.length === 0 || words.length < FILL_IN_THE_BLANKS_OPTION_COUNT) {
+  if (words.length === 0) {
     return (
       <div className="text-center p-8 text-red-500">
-        <p className="text-xl mb-4">{message || `Cần ít nhất ${FILL_IN_THE_BLANKS_OPTION_COUNT} từ để tạo các tùy chọn cho chế độ "Điền Từ Thích Hợp". Vui lòng chọn phạm vi từ vựng lớn hơn.`}</p>
+        <p className="text-xl mb-4">{message || `Không có từ vựng để luyện tập chế độ "Điền Từ Thích Hợp" trong phạm vi này.`}</p>
         <button
           onClick={onGoBack}
           className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-lg transition-all duration-300"
@@ -358,20 +359,17 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
 
   return (
     <div className="flex flex-col items-center p-4">
-      {/* Overall Title and Messages */}
       <h2 className="text-3xl font-extrabold text-center text-blue-800 dark:text-blue-300 mb-6">
         Điền Từ Thích Hợp: {selectedHSKLevel}
       </h2>
       {message && <p className="text-red-500 text-center mb-4">{message}</p>}
 
-      {/* Main content based on loading, completion, or current state */}
       {isLoadingSentences ? (
         <div className="text-center p-8 text-gray-700 dark:text-gray-300 mt-8">
           <LoadingIcon className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
           <p className="text-xl">Đang tạo câu hỏi, vui lòng đợi...</p>
         </div>
       ) : practiceCompleted ? (
-        // Practice Completed Screen
         <div className="text-center p-8 bg-blue-100 dark:bg-slate-700 rounded-lg shadow-lg w-full max-w-md">
           <h3 className="text-3xl font-bold text-blue-800 dark:text-blue-200 mb-4">Hoàn thành phần điền từ!</h3>
           <p className="text-2xl text-gray-700 dark:text-gray-300 mb-4">
@@ -395,7 +393,6 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
           </div>
         </div>
       ) : (
-        // Questions Display Screen (directly show questions if not loading and not completed)
         <>
             <p className="text-lg text-gray-600 dark:text-gray-400 mb-4">
               Lượt {currentTurnNumber} ({currentTurnQuestionsData.filter(q => q.isCorrectlyAnswered).length} / {currentTurnQuestionsData.length} đúng) (Tổng: {totalScore} / {words.length})
@@ -404,21 +401,18 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-7xl mb-8">
               {currentTurnQuestionsData.map((q, qIndex) => (
                 <div key={q.id} className="bg-blue-200 dark:bg-slate-700 p-3 rounded-lg shadow-md flex flex-col">
-                  {/* Row 1: Question Number */}
                   <h4 className="text-lg font-bold text-blue-800 dark:text-blue-200 mb-2">Câu {qIndex + 1}:</h4>
                   
-                  {/* Row 2: Sentence with blank */}
                   <p className="text-xl font-mandarin font-bold text-gray-800 dark:text-gray-200 mb-3 text-center" lang="zh-Hans">
                       {q.sentence || "Đang tải câu hỏi..."}
                   </p>
                   
-                  {/* Row 3: Options (flex row, wraps) */}
                   <div className="flex flex-wrap justify-center gap-2">
                     {q.options.map((optionWord, optionIndex) => {
                       const isCorrectOption = q.word.mandarin === optionWord.mandarin;
                       const isSelected = q.selectedAnswerMandarin === optionWord.mandarin;
-                      let buttonClasses = `flex-1 px-3 py-1.5 rounded-lg text-center transition-all duration-200 shadow-sm whitespace-nowrap min-w-[calc(25%-0.5rem)]`; // min-w for 4 items with gap-2
-                      let isDisabled = q.isCorrectlyAnswered; // Disable once correctly answered
+                      let buttonClasses = `flex-1 px-3 py-1.5 rounded-lg text-center transition-all duration-200 shadow-sm whitespace-nowrap min-w-[calc(25%-0.5rem)]`;
+                      let isDisabled = q.isCorrectlyAnswered;
 
                       if (q.feedback) {
                         if (isCorrectOption) {
@@ -437,7 +431,7 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
 
                       return (
                         <button
-                          key={optionWord.mandarin + optionIndex} // Unique key including index
+                          key={optionWord.mandarin + optionIndex}
                           onClick={() => handleOptionClick(q.id, optionWord)}
                           disabled={isDisabled}
                           className={`${buttonClasses} disabled:opacity-70 disabled:cursor-not-allowed`}
@@ -464,7 +458,7 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
             )}
           </>
         )
-      }
+      )}
     </div>
   );
 };

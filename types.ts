@@ -1,4 +1,5 @@
 
+
 export interface HSKWord {
   mandarin: string;
   pinyin: string;
@@ -41,6 +42,7 @@ export enum Section {
   HANDWRITING_PRACTICE = 'HANDWRITING_PRACTICE',
   VOCABULARY_PRACTICE = 'VOCABULARY_PRACTICE',
   READING_TRANSLATION_PRACTICE = 'READING_TRANSLATION_PRACTICE',
+  PRACTICE_HISTORY = 'PRACTICE_HISTORY',
 }
 
 export interface ReadingArticle {
@@ -54,4 +56,22 @@ export interface ReadingArticle {
 export enum ReadingMode {
   READING = 'READING',
   TRANSLATION = 'TRANSLATION',
+}
+
+export interface PracticeSessionDetail {
+  word: HSKWord;
+  isCorrect: boolean;
+  userAnswer?: string; // e.g., for quiz, the selected Vietnamese meaning
+}
+
+export interface PracticeSession {
+  id: string; // Unique ID, can be a timestamp string
+  timestamp: string; // ISO string for sorting
+  section: Section;
+  mode: string; // VocabularyPracticeMode for vocab, or a descriptive string
+  hskLevel: string;
+  wordRangeLabel: string;
+  score: number;
+  total: number;
+  details: PracticeSessionDetail[];
 }

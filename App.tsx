@@ -8,6 +8,7 @@ import HandwritingPractice from './components/HandwritingPractice';
 import VocabularyPractice from './components/VocabularyPractice';
 import ReadingTranslationPractice from './components/ReadingTranslationPractice';
 import HomePage from './components/HomePage';
+import PracticeHistory from './components/PracticeHistory';
 
 const App: React.FC = () => {
   const [currentSection, setCurrentSection] = useState<Section>(Section.HOME);
@@ -25,13 +26,14 @@ const App: React.FC = () => {
     <div className="flex flex-col min-h-screen bg-blue-50 dark:bg-slate-950 font-sans">
       <Header
         onSelectSection={handleSelectSection}
-        onSelectHSKLevel={handleSelectHSKLevel}
         currentSection={currentSection}
-        currentHSKLevel={selectedHSKLevel}
       />
       <main className="flex-grow p-4 md:p-8">
         {currentSection === Section.HOME && (
-          <HomePage />
+          <HomePage 
+            onSelectSection={handleSelectSection}
+            onSelectHSKLevel={handleSelectHSKLevel}
+          />
         )}
         {currentSection === Section.HANDWRITING_PRACTICE && (
           <HandwritingPractice selectedHSKLevel={selectedHSKLevel} />
@@ -41,6 +43,9 @@ const App: React.FC = () => {
         )}
         {currentSection === Section.READING_TRANSLATION_PRACTICE && (
           <ReadingTranslationPractice selectedHSKLevel={selectedHSKLevel} />
+        )}
+        {currentSection === Section.PRACTICE_HISTORY && (
+          <PracticeHistory />
         )}
       </main>
       <Footer />

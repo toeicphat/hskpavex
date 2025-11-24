@@ -464,7 +464,7 @@ Now, generate a sentence for the word: "${word.mandarin}" with difficulty: "${ta
             )}
           </>
         )
-      )}
+      }
     </div>
   );
 };

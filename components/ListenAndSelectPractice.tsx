@@ -33,6 +33,9 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
   const [awaitingCorrectConfirmation, setAwaitingCorrectConfirmation] = useState<boolean>(false);
   const [isTurnComplete, setIsTurnComplete] = useState<boolean>(false);
   const sessionDetailsRef = useRef<PracticeSessionDetail[]>([]);
+  
+  // Ref to track initial mount to prevent premature ending
+  const isInitialMount = useRef(true);
 
   // TTS Control States
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -156,11 +159,23 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
     setMessage('');
     setCurrentTurnWords([]);
     setIsTurnComplete(false);
+    // Reset initial mount ref when words change to ensure correct start behavior
+    isInitialMount.current = true;
   }, [words, onPracticeEnd]);
 
   useEffect(() => {
     if (!practiceCompleted && currentTurnWords.length === 0 && !isTurnComplete) {
-        startNewTurn();
+        if (poolOfAvailableWords.length > 0) {
+            startNewTurn();
+        } else if (isInitialMount.current) {
+            // Do nothing on initial mount if pool is empty (waiting for initialization)
+        } else {
+            // If pool is empty and it's NOT the initial mount, then we are done
+            startNewTurn();
+        }
+    }
+    if (isInitialMount.current) {
+        isInitialMount.current = false;
     }
   }, [poolOfAvailableWords, currentTurnWords.length, practiceCompleted, startNewTurn, isTurnComplete]);
 
@@ -277,6 +292,7 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
     setMessage('');
     setIsTurnComplete(false);
     setCurrentTurnWords([]);
+    isInitialMount.current = true;
   };
 
   if (words.length === 0) {

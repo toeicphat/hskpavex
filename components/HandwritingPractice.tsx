@@ -1,12 +1,13 @@
 
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HSKWord, PracticeMode, WordRange, HSKLevelData, PracticeSession, PracticeSessionDetail, Section } from '../types';
 import { HSK_LEVELS } from '../hsk-levels';
 import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons';
+import { generateTiengTrung4LessonRanges } from '../tieng-trung-4-lessons';
 import DrawingCanvas, { DrawingCanvasApiRef } from './DrawingCanvas';
 import * as storageService from '../storageService';
+import { GoogleGenAI, Type } from "@google/genai";
+import { LoadingIcon } from './icons';
 
 interface HandwritingPracticeProps {
   selectedHSKLevel: string;
@@ -40,6 +41,11 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
   const [dynamicWordRanges, setDynamicWordRanges] = useState<WordRange[]>([]);
   const [customRangeStart, setCustomRangeStart] = useState<string>('');
   const [customRangeEnd, setCustomRangeEnd] = useState<string>('');
+
+  // Custom Level State
+  const [isCustomLevel, setIsCustomLevel] = useState(false);
+  const [customInputText, setCustomInputText] = useState('');
+  const [isParsingCustom, setIsParsingCustom] = useState(false);
 
   const drawingCanvasApiRef = useRef<DrawingCanvasApiRef>(null);
 
@@ -140,30 +146,41 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
   }, []);
 
   useEffect(() => {
-    const hskData = HSK_LEVELS.find(hsk => hsk.level === selectedHSKLevel);
-    setCurrentHSKData(hskData || null);
-
-    if (hskData) {
-      let baseRanges: WordRange[] = [];
-      if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') { 
-        baseRanges = generatePinyinRanges(hskData.words);
-      } else if (selectedHSKLevel === 'TIENG TRUNG 3') {
-        baseRanges = generateTiengTrung3LessonRanges(hskData.words.length);
-      } else {
-        baseRanges = generateNumericalRanges(hskData.words.length);
-      }
-
-      const hardWordsForLevel = storageService.getHardWords(hskData.words);
-      if (hardWordsForLevel.length > 0) {
-        setDynamicWordRanges([
-          { start: -1, end: -1, label: `Ôn tập từ khó (${hardWordsForLevel.length})` },
-          ...baseRanges
-        ]);
-      } else {
-        setDynamicWordRanges(baseRanges);
-      }
+    if (selectedHSKLevel === 'CUSTOM') {
+      setIsCustomLevel(true);
+      const customWords = storageService.getCustomVocabulary();
+      setCurrentHSKData({ level: 'CUSTOM', label: 'Tự chọn', words: customWords });
+      setDynamicWordRanges([{ start: 1, end: customWords.length, label: 'Tất cả từ tự chọn' }]);
+      setSelectedMode(PracticeMode.VIETNAMESE_ONLY); // Force Vietnamese Only for Custom
     } else {
-      setDynamicWordRanges([]);
+      setIsCustomLevel(false);
+      const hskData = HSK_LEVELS.find(hsk => hsk.level === selectedHSKLevel);
+      setCurrentHSKData(hskData || null);
+
+      if (hskData) {
+        let baseRanges: WordRange[] = [];
+        if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') { 
+          baseRanges = generatePinyinRanges(hskData.words);
+        } else if (selectedHSKLevel === 'TIENG TRUNG 3') {
+          baseRanges = generateTiengTrung3LessonRanges(hskData.words.length);
+        } else if (selectedHSKLevel === 'TIENG TRUNG 4') {
+          baseRanges = generateTiengTrung4LessonRanges(hskData.words.length);
+        } else {
+          baseRanges = generateNumericalRanges(hskData.words.length);
+        }
+
+        const hardWordsForLevel = storageService.getHardWords(hskData.words);
+        if (hardWordsForLevel.length > 0) {
+          setDynamicWordRanges([
+            { start: -1, end: -1, label: `Ôn tập từ khó (${hardWordsForLevel.length})` },
+            ...baseRanges
+          ]);
+        } else {
+          setDynamicWordRanges(baseRanges);
+        }
+      } else {
+        setDynamicWordRanges([]);
+      }
     }
 
     // Reset practice state if HSK level changes
@@ -228,6 +245,66 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
     setMessage('');
     if (drawingCanvasApiRef.current) {
       drawingCanvasApiRef.current.clear();
+    }
+  };
+
+  const handleParseCustomWords = async () => {
+    if (!customInputText.trim()) {
+      setMessage('Vui lòng nhập danh sách từ.');
+      return;
+    }
+    setIsParsingCustom(true);
+    setMessage('');
+
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Parse the following text into a list of Chinese words. 
+        The input format is roughly "ChineseCharacter [space] VietnameseMeaning" or just "ChineseCharacter".
+        Some lines might have punctuation.
+        
+        Task:
+        1. Identify the Chinese word (Mandarin).
+        2. Identify the Vietnamese meaning.
+        3. GENERATE the Pinyin for the Chinese word accurately.
+        
+        Input Text:
+        ${customInputText}
+        
+        Output JSON format: Array of objects with keys: mandarin, pinyin, vietnamese.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                mandarin: { type: Type.STRING },
+                pinyin: { type: Type.STRING },
+                vietnamese: { type: Type.STRING },
+              },
+              required: ['mandarin', 'pinyin', 'vietnamese'],
+            },
+          },
+        },
+      });
+
+      const parsedWords = JSON.parse(response.text || '[]');
+      if (parsedWords.length > 0) {
+        storageService.saveCustomVocabulary(parsedWords);
+        setCurrentHSKData({ level: 'CUSTOM', label: 'Tự chọn', words: parsedWords });
+        setDynamicWordRanges([{ start: 1, end: parsedWords.length, label: 'Tất cả từ tự chọn' }]);
+        setCustomInputText('');
+        setMessage(`Đã lưu thành công ${parsedWords.length} từ!`);
+      } else {
+        setMessage('Không tìm thấy từ hợp lệ. Vui lòng kiểm tra lại định dạng.');
+      }
+    } catch (error) {
+      console.error("Error parsing custom words:", error);
+      setMessage('Lỗi khi xử lý từ vựng. Vui lòng thử lại.');
+    } finally {
+      setIsParsingCustom(false);
     }
   };
 
@@ -329,7 +406,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
 
   const totalWordsInLevel = currentHSKData.words.length;
   // Combine conditions for hiding custom range input
-  const hideCustomRange = selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3';
+  const hideCustomRange = selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3' || selectedHSKLevel === 'TIENG TRUNG 4';
 
   // Conditional class names for full screen
   const containerClasses = `
@@ -364,23 +441,58 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
         Luyện chép chính tả: {currentHSKData.label}
       </h2>
 
-      {message && <p className="text-red-500 text-center mb-4">{message}</p>}
+      {message && <p className={`text-center mb-4 ${message.includes('thành công') ? 'text-green-600' : 'text-red-500'}`}>{message}</p>}
 
       {!isPracticeStarted ? (
         <>
+          {isCustomLevel && (
+            <div className="mb-8 p-6 bg-white dark:bg-slate-700 rounded-lg shadow-md">
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Nhập từ vựng tự chọn</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                Nhập danh sách từ (ví dụ: "我 tôi" hoặc "爸爸 ba"), mỗi từ một dòng hoặc cách nhau bằng dấu phẩy. Hệ thống sẽ tự động tạo Pinyin.
+              </p>
+              <textarea
+                className="w-full h-32 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white mb-4"
+                placeholder="Ví dụ:
+我 tôi
+你 bạn
+好 tốt"
+                value={customInputText}
+                onChange={(e) => setCustomInputText(e.target.value)}
+              />
+              <div className="flex gap-4">
+                <button
+                  onClick={handleParseCustomWords}
+                  disabled={isParsingCustom}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center"
+                >
+                  {isParsingCustom && <LoadingIcon className="w-5 h-5 animate-spin mr-2" />}
+                  {isParsingCustom ? 'Đang xử lý...' : 'Lưu & Cập nhật danh sách'}
+                </button>
+                {currentHSKData.words.length > 0 && (
+                  <div className="text-gray-500 dark:text-gray-400 self-center">
+                    Hiện có: {currentHSKData.words.length} từ
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="mb-6">
             <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">1. Chọn chế độ luyện tập:</h3>
             <div className="flex flex-wrap gap-3 justify-center">
-              <button
-                onClick={() => setSelectedMode(PracticeMode.PINYIN_VIETNAMESE)}
-                className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
-                  selectedMode === PracticeMode.PINYIN_VIETNAMESE
-                    ? 'bg-green-600 text-white shadow-md'
-                    : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
-                }`}
-              >
-                Pinyin & Nghĩa tiếng Việt
-              </button>
+              {!isCustomLevel && (
+                <button
+                  onClick={() => setSelectedMode(PracticeMode.PINYIN_VIETNAMESE)}
+                  className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
+                    selectedMode === PracticeMode.PINYIN_VIETNAMESE
+                      ? 'bg-green-600 text-white shadow-md'
+                      : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
+                  }`}
+                >
+                  Pinyin & Nghĩa tiếng Việt
+                </button>
+              )}
               <button
                 onClick={() => setSelectedMode(PracticeMode.VIETNAMESE_ONLY)}
                 className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
@@ -392,6 +504,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
                 Chỉ nghĩa tiếng Việt
               </button>
             </div>
+            {isCustomLevel && <p className="text-center text-sm text-gray-500 mt-2 italic">*Chế độ tự chọn chỉ hỗ trợ "Chỉ nghĩa tiếng Việt"</p>}
           </div>
 
           <div className="mb-6">
@@ -417,7 +530,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
             </div>
           </div>
 
-          {!hideCustomRange && ( // Hide custom range for HSK 5, HSK 6, and Tiếng Trung 3
+          {!hideCustomRange && !isCustomLevel && ( // Hide custom range for HSK 5, HSK 6, Tiếng Trung 3, Tiếng Trung 4, and Custom Level
             <div className="mb-6 text-center">
               <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">3. Chọn phạm vi tùy chỉnh (tùy chọn):</h3>
               <div className="flex items-center justify-center gap-2 mb-3">
@@ -472,7 +585,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
           )}
 
           <div className="mb-6 text-center">
-            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">{hideCustomRange ? '3.' : '4.'} Lọc theo chữ Hán (tùy chọn):</h3>
+            <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">{hideCustomRange || isCustomLevel ? '3.' : '4.'} Lọc theo chữ Hán (tùy chọn):</h3>
             <input
               type="text"
               value={mandarinFilter}

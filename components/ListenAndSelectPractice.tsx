@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { HSKWord, PracticeSession, PracticeSessionDetail, Section, VocabularyPracticeMode } from '../types';
+import { HSKWord, PracticeSession, PracticeSessionDetail, Section, VocabularyPracticeMode, DifficultyLevel } from '../types';
 import { LISTEN_AND_SELECT_WORD_COUNT, LISTEN_AND_SELECT_OPTION_COUNT } from '../global-constants';
 import * as storageService from '../storageService';
 
 interface ListenAndSelectPracticeProps {
   words: HSKWord[];
   fullVocabulary: HSKWord[]; // Full list for distractors
+  selectedUserDifficulty: DifficultyLevel;
   autoAdvance: boolean;
   onPracticeEnd: (message: string, isFinal: boolean) => void;
   onGoBack: () => void;
@@ -17,7 +18,7 @@ interface ListenAndSelectPracticeProps {
 
 const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
 
-const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words, fullVocabulary, autoAdvance, onPracticeEnd, onGoBack, onWordResult, selectedHSKLevel, wordRangeLabel }) => {
+const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words, fullVocabulary, selectedUserDifficulty, autoAdvance, onPracticeEnd, onGoBack, onWordResult, selectedHSKLevel, wordRangeLabel }) => {
   const [poolOfAvailableWords, setPoolOfAvailableWords] = useState<HSKWord[]>([]);
   const [currentTurnWords, setCurrentTurnWords] = useState<HSKWord[]>([]);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0);
@@ -425,8 +426,13 @@ const ListenAndSelectPractice: React.FC<ListenAndSelectPracticeProps> = ({ words
                   aria-disabled={isDisabled}
                 >
                   <p className="text-4xl font-mandarin font-bold mb-1" lang="zh-Hans">{optionWord.mandarin}</p>
-                  <p className="text-lg text-gray-700 dark:text-gray-300 mb-1">{optionWord.pinyin}</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{optionWord.vietnamese}</p>
+                  {/* Conditionally render info based on difficulty */}
+                  {selectedUserDifficulty === DifficultyLevel.EASY && (
+                    <>
+                      <p className="text-lg text-gray-700 dark:text-gray-300 mb-1">{optionWord.pinyin}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{optionWord.vietnamese}</p>
+                    </>
+                  )}
                 </button>
               );
             })}

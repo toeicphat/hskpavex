@@ -1312,9 +1312,14 @@ const parseData = (data: string): HSKWord[] => {
   const lines = data.split('\n');
   const parsedWords: HSKWord[] = [];
   for (const line of lines) {
-    const parts = line.split('\t');
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
+
+    // Try splitting by tabs or multiple spaces to be more robust
+    const parts = trimmedLine.split(/[\t]+| {2,}/); 
+    
     if (parts.length >= 4) {
-      // Assuming format is [index]\t[mandarin]\t[pinyin]\t[vietnamese]
+      // Assuming format is [index] [mandarin] [pinyin] [vietnamese]
       const mandarin = parts[1].trim();
       const pinyin = parts[2].trim();
       const vietnamese = parts[3].trim();

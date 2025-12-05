@@ -16,6 +16,7 @@ export interface UserWordData {
 export interface UserData {
   wordData: { [mandarinWord: string]: UserWordData };
   practiceHistory: PracticeSession[];
+  customVocabulary: HSKWord[]; // Added field for custom vocabulary
 }
 
 const STORAGE_KEY = 'pavexHskUserData';
@@ -33,13 +34,17 @@ const loadUserData = (): UserData => {
         if (!Array.isArray(parsedData.practiceHistory)) {
           parsedData.practiceHistory = [];
         }
+        // If customVocabulary doesn't exist, initialize it
+        if (!Array.isArray(parsedData.customVocabulary)) {
+          parsedData.customVocabulary = [];
+        }
         return parsedData;
       }
     }
   } catch (error) {
     console.error("Failed to load user data from localStorage", error);
   }
-  return { wordData: {}, practiceHistory: [] };
+  return { wordData: {}, practiceHistory: [], customVocabulary: [] };
 };
 
 const saveUserData = (data: UserData) => {
@@ -159,4 +164,15 @@ export const addPracticeSession = (session: PracticeSession) => {
 export const getPracticeHistory = (): PracticeSession[] => {
   const userData = loadUserData();
   return userData.practiceHistory;
+};
+
+export const saveCustomVocabulary = (words: HSKWord[]) => {
+  const userData = loadUserData();
+  userData.customVocabulary = words;
+  saveUserData(userData);
+};
+
+export const getCustomVocabulary = (): HSKWord[] => {
+  const userData = loadUserData();
+  return userData.customVocabulary || [];
 };

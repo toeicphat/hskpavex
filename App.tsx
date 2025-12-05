@@ -9,6 +9,7 @@ import VocabularyPractice from './components/VocabularyPractice';
 import ReadingTranslationPractice from './components/ReadingTranslationPractice';
 import HomePage from './components/HomePage';
 import PracticeHistory from './components/PracticeHistory';
+import WritingTest from './components/WritingTest';
 
 const App: React.FC = () => {
   const [currentSection, setCurrentSection] = useState<Section>(Section.HOME);
@@ -43,6 +44,9 @@ const App: React.FC = () => {
         )}
         {currentSection === Section.READING_TRANSLATION_PRACTICE && (
           <ReadingTranslationPractice selectedHSKLevel={selectedHSKLevel} />
+        )}
+        {currentSection === Section.WRITING_TEST && (
+          <WritingTest />
         )}
         {currentSection === Section.PRACTICE_HISTORY && (
           <PracticeHistory />

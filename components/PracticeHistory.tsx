@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import * as storageService from '../storageService';
 import { PracticeSession, Section, VocabularyPracticeMode } from '../types';
 import SessionDetailView from './SessionDetailView';
+import { HSK_LEVELS } from '../hsk-levels';
 
 const ITEMS_PER_PAGE = 20;
 
@@ -37,6 +38,7 @@ const getModeDisplayName = (session: PracticeSession): string => {
 const PracticeHistory: React.FC = () => {
   const [history, setHistory] = useState<PracticeSession[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [hskFilter, setHskFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedSession, setSelectedSession] = useState<PracticeSession | null>(null);
 
@@ -48,29 +50,43 @@ const PracticeHistory: React.FC = () => {
     const now = new Date();
     return history.filter(session => {
       const sessionDate = new Date(session.timestamp);
+      
+      // Date Filtering
+      let dateMatch = true;
       switch (filter) {
         case '7days':
           const sevenDaysAgo = new Date(now);
           sevenDaysAgo.setDate(now.getDate() - 7);
-          return sessionDate >= sevenDaysAgo;
+          dateMatch = sessionDate >= sevenDaysAgo;
+          break;
         case 'thisMonth':
-          return sessionDate.getMonth() === now.getMonth() && sessionDate.getFullYear() === now.getFullYear();
+          dateMatch = sessionDate.getMonth() === now.getMonth() && sessionDate.getFullYear() === now.getFullYear();
+          break;
         case '3months':
           const threeMonthsAgo = new Date(now);
           threeMonthsAgo.setMonth(now.getMonth() - 3);
-          return sessionDate >= threeMonthsAgo;
+          dateMatch = sessionDate >= threeMonthsAgo;
+          break;
         case '6months':
             const sixMonthsAgo = new Date(now);
             sixMonthsAgo.setMonth(now.getMonth() - 6);
-            return sessionDate >= sixMonthsAgo;
+            dateMatch = sessionDate >= sixMonthsAgo;
+            break;
         case 'thisYear':
-          return sessionDate.getFullYear() === now.getFullYear();
+          dateMatch = sessionDate.getFullYear() === now.getFullYear();
+          break;
         case 'all':
         default:
-          return true;
+          dateMatch = true;
+          break;
       }
+
+      // HSK Level Filtering
+      const hskMatch = hskFilter === 'all' || session.hskLevel === hskFilter;
+
+      return dateMatch && hskMatch;
     });
-  }, [history, filter]);
+  }, [history, filter, hskFilter]);
 
   const paginatedHistory = useMemo(() => {
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -94,21 +110,44 @@ const PracticeHistory: React.FC = () => {
         Lịch sử luyện tập
       </h2>
 
-      {/* Filter Buttons */}
-      <div className="flex flex-wrap gap-3 justify-center mb-6">
-        {filterOptions.map(option => (
-          <button
-            key={option.key}
-            onClick={() => handleFilterChange(option.key)}
-            className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
-              filter === option.key
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-white text-gray-700 hover:bg-blue-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
+      <div className="flex flex-col items-center mb-6 gap-4">
+        {/* Date Filters */}
+        <div className="flex flex-wrap gap-3 justify-center">
+          {filterOptions.map(option => (
+            <button
+              key={option.key}
+              onClick={() => handleFilterChange(option.key)}
+              className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
+                filter === option.key
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'bg-white text-gray-700 hover:bg-blue-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        {/* HSK Level Filter */}
+        <div className="flex items-center bg-white dark:bg-slate-700 rounded-lg px-4 py-2 shadow-sm">
+            <label htmlFor="hsk-level-filter" className="mr-3 font-medium text-gray-700 dark:text-gray-200 whitespace-nowrap">
+                Cấp độ HSK:
+            </label>
+            <select
+                id="hsk-level-filter"
+                value={hskFilter}
+                onChange={(e) => {
+                    setHskFilter(e.target.value);
+                    setCurrentPage(1);
+                }}
+                className="form-select block w-full pl-3 pr-10 py-1.5 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md dark:bg-slate-600 dark:border-gray-500 dark:text-white cursor-pointer"
+            >
+                <option value="all">Tất cả</option>
+                {HSK_LEVELS.map(level => (
+                    <option key={level.level} value={level.level}>{level.label}</option>
+                ))}
+            </select>
+        </div>
       </div>
 
       {/* History Table */}
@@ -148,7 +187,7 @@ const PracticeHistory: React.FC = () => {
             )) : (
               <tr>
                 <td colSpan={4} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                  Không có lịch sử luyện tập nào trong khoảng thời gian này.
+                  Không có lịch sử luyện tập nào phù hợp với bộ lọc này.
                 </td>
               </tr>
             )}

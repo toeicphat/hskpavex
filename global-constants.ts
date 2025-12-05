@@ -1,5 +1,4 @@
 
-
 import { WordRange, DifficultyLevel } from './types';
 
 export const HSK_WORD_RANGES_PLACEHOLDER: WordRange[] = [
@@ -26,7 +25,8 @@ export const HSK_DIFFICULTY_DISTRIBUTIONS: { [key: string]: { easy: number; medi
   'HSK 4': { easy: 5, medium: 3, hard: 2 },
   'HSK 5': { easy: 4, medium: 4, hard: 2 },
   'HSK 6': { easy: 3, medium: 4, hard: 3 },
-  'TIENG TRUNG 3': { easy: 8, medium: 2, hard: 0 }, // Adjusting for "thỉnh thoảng chèn 1 vài câu vừa"
+  'TIENG TRUNG 3': { easy: 8, medium: 2, hard: 0 },
+  'TIENG TRUNG 4': { easy: 7, medium: 3, hard: 0 }, // Adjusting for Tiếng Trung 4
 };
 
 export const DIFFICULTY_LEVEL_MAP: { [key in DifficultyLevel]: number } = {

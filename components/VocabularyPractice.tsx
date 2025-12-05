@@ -3,12 +3,15 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { HSKLevelData, HSKWord, WordRange, VocabularyPracticeMode, DifficultyLevel } from '../types';
 import { HSK_LEVELS } from '../hsk-levels';
 import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons';
+import { generateTiengTrung4LessonRanges } from '../tieng-trung-4-lessons';
 import FlashcardPractice from './FlashcardPractice';
 import MatchingWordsPractice from './MatchingWordsPractice';
 import QuizPractice from './QuizPractice';
 import ListenAndSelectPractice from './ListenAndSelectPractice';
 import FillInTheBlanksPractice from './FillInTheBlanksPractice'; // New import
 import * as storageService from '../storageService';
+import { GoogleGenAI, Type } from "@google/genai";
+import { LoadingIcon } from './icons';
 
 
 interface VocabularyPracticeProps {
@@ -43,6 +46,11 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
 
   // New state for difficulty selection in FillInTheBlanks mode
   const [selectedUserDifficulty, setSelectedUserDifficulty] = useState<DifficultyLevel>(DifficultyLevel.MEDIUM);
+
+  // Custom Level State
+  const [isCustomLevel, setIsCustomLevel] = useState(false);
+  const [customInputText, setCustomInputText] = useState('');
+  const [isParsingCustom, setIsParsingCustom] = useState(false);
 
 
   // Generates numerical ranges for HSK 1-4
@@ -98,35 +106,49 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
   }, []);
 
   useEffect(() => {
-    const hskData = HSK_LEVELS.find(hsk => hsk.level === selectedHSKLevel);
-    setCurrentHSKData(hskData || null);
-
-    if (hskData) {
-      let baseRanges: WordRange[] = [];
-      if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') {
-        baseRanges = generatePinyinRanges(hskData.words);
-      } else if (selectedHSKLevel === 'TIENG TRUNG 3') {
-        baseRanges = generateTiengTrung3LessonRanges(hskData.words.length);
-      } else {
-        baseRanges = generateNumericalRanges(hskData.words.length);
-      }
-
-      const hardWordsForLevel = storageService.getHardWords(hskData.words);
-      const reviewWordsForLevel = storageService.getReviewWords(hskData.words);
-      setHardWordsCount(hardWordsForLevel.length);
-      setReviewWordsCount(reviewWordsForLevel.length);
-
-      const specialRanges: WordRange[] = [];
-      if (reviewWordsForLevel.length > 0) {
-        specialRanges.push({ start: -2, end: -2, label: `Ôn tập SRS (${reviewWordsForLevel.length})` });
-      }
-      if (hardWordsForLevel.length > 0) {
-        specialRanges.push({ start: -1, end: -1, label: `Ôn tập từ khó (${hardWordsForLevel.length})` });
-      }
-
-      setDynamicWordRanges([...specialRanges, ...baseRanges]);
+    if (selectedHSKLevel === 'CUSTOM') {
+      setIsCustomLevel(true);
+      const customWords = storageService.getCustomVocabulary();
+      const customData = { level: 'CUSTOM', label: 'Tự chọn', words: customWords };
+      setCurrentHSKData(customData);
+      setDynamicWordRanges([{ start: 1, end: customWords.length, label: 'Tất cả từ tự chọn' }]);
+      // Custom words don't support SRS/Hard words logic yet as they are dynamic
+      setHardWordsCount(0);
+      setReviewWordsCount(0);
     } else {
-      setDynamicWordRanges([]);
+      setIsCustomLevel(false);
+      const hskData = HSK_LEVELS.find(hsk => hsk.level === selectedHSKLevel);
+      setCurrentHSKData(hskData || null);
+
+      if (hskData) {
+        let baseRanges: WordRange[] = [];
+        if (selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6') {
+          baseRanges = generatePinyinRanges(hskData.words);
+        } else if (selectedHSKLevel === 'TIENG TRUNG 3') {
+          baseRanges = generateTiengTrung3LessonRanges(hskData.words.length);
+        } else if (selectedHSKLevel === 'TIENG TRUNG 4') {
+          baseRanges = generateTiengTrung4LessonRanges(hskData.words.length);
+        } else {
+          baseRanges = generateNumericalRanges(hskData.words.length);
+        }
+
+        const hardWordsForLevel = storageService.getHardWords(hskData.words);
+        const reviewWordsForLevel = storageService.getReviewWords(hskData.words);
+        setHardWordsCount(hardWordsForLevel.length);
+        setReviewWordsCount(reviewWordsForLevel.length);
+
+        const specialRanges: WordRange[] = [];
+        if (reviewWordsForLevel.length > 0) {
+          specialRanges.push({ start: -2, end: -2, label: `Ôn tập SRS (${reviewWordsForLevel.length})` });
+        }
+        if (hardWordsForLevel.length > 0) {
+          specialRanges.push({ start: -1, end: -1, label: `Ôn tập từ khó (${hardWordsForLevel.length})` });
+        }
+
+        setDynamicWordRanges([...specialRanges, ...baseRanges]);
+      } else {
+        setDynamicWordRanges([]);
+      }
     }
 
     // Reset practice state if HSK level changes
@@ -194,6 +216,67 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
     setIsPracticeStarted(true);
     setMessage('');
   };
+
+  const handleParseCustomWords = async () => {
+    if (!customInputText.trim()) {
+      setMessage('Vui lòng nhập danh sách từ.');
+      return;
+    }
+    setIsParsingCustom(true);
+    setMessage('');
+
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `Parse the following text into a list of Chinese words. 
+        The input format is roughly "ChineseCharacter [space] VietnameseMeaning" or just "ChineseCharacter".
+        Some lines might have punctuation.
+        
+        Task:
+        1. Identify the Chinese word (Mandarin).
+        2. Identify the Vietnamese meaning.
+        3. GENERATE the Pinyin for the Chinese word accurately.
+        
+        Input Text:
+        ${customInputText}
+        
+        Output JSON format: Array of objects with keys: mandarin, pinyin, vietnamese.`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                mandarin: { type: Type.STRING },
+                pinyin: { type: Type.STRING },
+                vietnamese: { type: Type.STRING },
+              },
+              required: ['mandarin', 'pinyin', 'vietnamese'],
+            },
+          },
+        },
+      });
+
+      const parsedWords = JSON.parse(response.text || '[]');
+      if (parsedWords.length > 0) {
+        storageService.saveCustomVocabulary(parsedWords);
+        const customData = { level: 'CUSTOM', label: 'Tự chọn', words: parsedWords };
+        setCurrentHSKData(customData);
+        setDynamicWordRanges([{ start: 1, end: parsedWords.length, label: 'Tất cả từ tự chọn' }]);
+        setCustomInputText('');
+        setMessage(`Đã lưu thành công ${parsedWords.length} từ!`);
+      } else {
+        setMessage('Không tìm thấy từ hợp lệ. Vui lòng kiểm tra lại định dạng.');
+      }
+    } catch (error) {
+      console.error("Error parsing custom words:", error);
+      setMessage('Lỗi khi xử lý từ vựng. Vui lòng thử lại.');
+    } finally {
+      setIsParsingCustom(false);
+    }
+  };
   
   const handleWordResult = useCallback((word: HSKWord, isCorrect: boolean) => {
     storageService.updateWordOnResult(word, isCorrect);
@@ -213,7 +296,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
       setIsPracticeStarted(false);
       setPracticeWords([]); // Clear practice words after session
        // Refresh counts on final end
-      if (currentHSKData) {
+      if (currentHSKData && !isCustomLevel) {
         setHardWordsCount(storageService.getHardWords(currentHSKData.words).length);
         setReviewWordsCount(storageService.getReviewWords(currentHSKData.words).length);
       }
@@ -223,7 +306,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
   const handleGoBackToSelection = () => {
     resetPracticeState();
     // Refresh counts on going back
-    if (currentHSKData) {
+    if (currentHSKData && !isCustomLevel) {
         setHardWordsCount(storageService.getHardWords(currentHSKData.words).length);
         setReviewWordsCount(storageService.getReviewWords(currentHSKData.words).length);
       }
@@ -235,7 +318,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
 
   const totalWordsInLevel = currentHSKData.words.length;
   // Combine conditions for hiding custom range input
-  const hideCustomRange = selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3';
+  const hideCustomRange = selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3' || selectedHSKLevel === 'TIENG TRUNG 4';
 
   return (
     <div className="container mx-auto p-4 md:p-8 bg-blue-100 dark:bg-slate-800 rounded-lg shadow-xl max-w-5xl mt-8">
@@ -243,10 +326,43 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
         Luyện từ vựng: {currentHSKData.label}
       </h2>
 
-      {message && <p className="text-red-500 text-center mb-4">{message}</p>}
+      {message && <p className={`text-center mb-4 ${message.includes('thành công') ? 'text-green-600' : 'text-red-500'}`}>{message}</p>}
 
       {!isPracticeStarted ? (
         <>
+          {isCustomLevel && (
+            <div className="mb-8 p-6 bg-white dark:bg-slate-700 rounded-lg shadow-md">
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Nhập từ vựng tự chọn</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+                Nhập danh sách từ (ví dụ: "我 tôi" hoặc "爸爸 ba"), mỗi từ một dòng hoặc cách nhau bằng dấu phẩy. Hệ thống sẽ tự động tạo Pinyin.
+              </p>
+              <textarea
+                className="w-full h-32 p-3 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 dark:bg-slate-800 dark:text-white mb-4"
+                placeholder="Ví dụ:
+我 tôi
+你 bạn
+好 tốt"
+                value={customInputText}
+                onChange={(e) => setCustomInputText(e.target.value)}
+              />
+              <div className="flex gap-4">
+                <button
+                  onClick={handleParseCustomWords}
+                  disabled={isParsingCustom}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center"
+                >
+                  {isParsingCustom && <LoadingIcon className="w-5 h-5 animate-spin mr-2" />}
+                  {isParsingCustom ? 'Đang xử lý...' : 'Lưu & Cập nhật danh sách'}
+                </button>
+                {currentHSKData.words.length > 0 && (
+                  <div className="text-gray-500 dark:text-gray-400 self-center">
+                    Hiện có: {currentHSKData.words.length} từ
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="mb-6">
             <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">1. Chọn chế độ luyện tập:</h3>
             <div className="flex flex-wrap gap-3 justify-center">
@@ -284,7 +400,10 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
                 Quiz
               </button>
               <button
-                onClick={() => setSelectedPracticeMode(VocabularyPracticeMode.LISTEN_AND_SELECT)}
+                onClick={() => {
+                  setSelectedPracticeMode(VocabularyPracticeMode.LISTEN_AND_SELECT);
+                  setSelectedUserDifficulty(DifficultyLevel.EASY); // Default to Easy when selecting this mode
+                }}
                 className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
                   selectedPracticeMode === VocabularyPracticeMode.LISTEN_AND_SELECT
                     ? 'bg-green-600 text-white shadow-md'
@@ -295,7 +414,10 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
                 Nghe và Chọn Từ
               </button>
               <button
-                onClick={() => setSelectedPracticeMode(VocabularyPracticeMode.FILL_IN_THE_BLANKS)}
+                onClick={() => {
+                  setSelectedPracticeMode(VocabularyPracticeMode.FILL_IN_THE_BLANKS);
+                  setSelectedUserDifficulty(DifficultyLevel.MEDIUM); // Default to Medium for this mode
+                }}
                 className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
                   selectedPracticeMode === VocabularyPracticeMode.FILL_IN_THE_BLANKS
                     ? 'bg-green-600 text-white shadow-md'
@@ -331,7 +453,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
             </div>
           </div>
 
-          {!hideCustomRange && ( // Hide custom range input for HSK 5, HSK 6, and Tiếng Trung 3
+          {!hideCustomRange && !isCustomLevel && ( // Hide custom range input for HSK 5, HSK 6, Tiếng Trung 3, Tiếng Trung 4, and Custom Level
             <div className="mb-6 text-center">
               <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">3. Chọn phạm vi tùy chỉnh (tùy chọn):</h3>
               <div className="flex items-center justify-center gap-2 mb-3">
@@ -385,44 +507,75 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
             </div>
           )}
 
-          {/* New: Difficulty selection for Fill-in-the-blanks mode */}
-          {selectedPracticeMode === VocabularyPracticeMode.FILL_IN_THE_BLANKS && (
+          {/* Difficulty selection for Fill-in-the-blanks and Listen-and-Select mode */}
+          {(selectedPracticeMode === VocabularyPracticeMode.FILL_IN_THE_BLANKS || 
+            selectedPracticeMode === VocabularyPracticeMode.LISTEN_AND_SELECT) && (
             <div className="mb-6">
-              <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">4. Chọn độ khó của câu hỏi:</h3>
+              <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">4. Chọn độ khó:</h3>
               <div className="flex flex-wrap gap-3 justify-center">
-                <button
-                  onClick={() => setSelectedUserDifficulty(DifficultyLevel.EASY)}
-                  className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
-                    selectedUserDifficulty === DifficultyLevel.EASY
-                      ? 'bg-green-600 text-white shadow-md'
-                      : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
-                  }`}
-                  aria-pressed={selectedUserDifficulty === DifficultyLevel.EASY}
-                >
-                  Dễ
-                </button>
-                <button
-                  onClick={() => setSelectedUserDifficulty(DifficultyLevel.MEDIUM)}
-                  className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
-                    selectedUserDifficulty === DifficultyLevel.MEDIUM
-                      ? 'bg-yellow-600 text-white shadow-md'
-                      : 'bg-gray-200 text-gray-700 hover:bg-yellow-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
-                  }`}
-                  aria-pressed={selectedUserDifficulty === DifficultyLevel.MEDIUM}
-                >
-                  Trung bình
-                </button>
-                <button
-                  onClick={() => setSelectedUserDifficulty(DifficultyLevel.HARD)}
-                  className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
-                    selectedUserDifficulty === DifficultyLevel.HARD
-                      ? 'bg-red-600 text-white shadow-md'
-                      : 'bg-gray-200 text-gray-700 hover:bg-red-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
-                  }`}
-                  aria-pressed={selectedUserDifficulty === DifficultyLevel.HARD}
-                >
-                  Khó
-                </button>
+                {selectedPracticeMode === VocabularyPracticeMode.LISTEN_AND_SELECT ? (
+                  <>
+                    <button
+                      onClick={() => setSelectedUserDifficulty(DifficultyLevel.EASY)}
+                      className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
+                        selectedUserDifficulty === DifficultyLevel.EASY
+                          ? 'bg-green-600 text-white shadow-md'
+                          : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
+                      }`}
+                      aria-pressed={selectedUserDifficulty === DifficultyLevel.EASY}
+                    >
+                      Dễ (Hiện đầy đủ thông tin)
+                    </button>
+                    <button
+                      onClick={() => setSelectedUserDifficulty(DifficultyLevel.HARD)}
+                      className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
+                        selectedUserDifficulty === DifficultyLevel.HARD
+                          ? 'bg-red-600 text-white shadow-md'
+                          : 'bg-gray-200 text-gray-700 hover:bg-red-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
+                      }`}
+                      aria-pressed={selectedUserDifficulty === DifficultyLevel.HARD}
+                    >
+                      Khó (Chỉ hiện chữ Hán)
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Default Difficulty Options for Fill In The Blanks */}
+                    <button
+                      onClick={() => setSelectedUserDifficulty(DifficultyLevel.EASY)}
+                      className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
+                        selectedUserDifficulty === DifficultyLevel.EASY
+                          ? 'bg-green-600 text-white shadow-md'
+                          : 'bg-gray-200 text-gray-700 hover:bg-green-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
+                      }`}
+                      aria-pressed={selectedUserDifficulty === DifficultyLevel.EASY}
+                    >
+                      Dễ
+                    </button>
+                    <button
+                      onClick={() => setSelectedUserDifficulty(DifficultyLevel.MEDIUM)}
+                      className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
+                        selectedUserDifficulty === DifficultyLevel.MEDIUM
+                          ? 'bg-yellow-600 text-white shadow-md'
+                          : 'bg-gray-200 text-gray-700 hover:bg-yellow-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
+                      }`}
+                      aria-pressed={selectedUserDifficulty === DifficultyLevel.MEDIUM}
+                    >
+                      Trung bình
+                    </button>
+                    <button
+                      onClick={() => setSelectedUserDifficulty(DifficultyLevel.HARD)}
+                      className={`px-5 py-2 rounded-full font-medium transition-all duration-200 ${
+                        selectedUserDifficulty === DifficultyLevel.HARD
+                          ? 'bg-red-600 text-white shadow-md'
+                          : 'bg-gray-200 text-gray-700 hover:bg-red-100 dark:bg-slate-700 dark:text-gray-200 dark:hover:bg-slate-600'
+                      }`}
+                      aria-pressed={selectedUserDifficulty === DifficultyLevel.HARD}
+                    >
+                      Khó
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -452,7 +605,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
                 !selectedPracticeMode || 
                 !selectedWordRange || 
                 currentHSKData?.words.length === 0 ||
-                (selectedPracticeMode === VocabularyPracticeMode.FILL_IN_THE_BLANKS && !selectedUserDifficulty) // Disable if fill-in-blanks is selected but no difficulty
+                ((selectedPracticeMode === VocabularyPracticeMode.FILL_IN_THE_BLANKS || selectedPracticeMode === VocabularyPracticeMode.LISTEN_AND_SELECT) && !selectedUserDifficulty)
               }
             >
               Bắt đầu luyện tập
@@ -521,6 +674,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
                 <ListenAndSelectPractice 
                   words={practiceWords} 
                   fullVocabulary={currentHSKData.words} // Pass full vocab for distractors
+                  selectedUserDifficulty={selectedUserDifficulty}
                   autoAdvance={autoAdvance} 
                   onPracticeEnd={handlePracticeEnd} 
                   onGoBack={handleGoBackToSelection} 

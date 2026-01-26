@@ -1,5 +1,4 @@
 
-
 export interface HSKWord {
   mandarin: string;
   pinyin: string;
@@ -41,23 +40,9 @@ export enum Section {
   HOME = 'HOME',
   HANDWRITING_PRACTICE = 'HANDWRITING_PRACTICE',
   VOCABULARY_PRACTICE = 'VOCABULARY_PRACTICE',
-  READING_TRANSLATION_PRACTICE = 'READING_TRANSLATION_PRACTICE',
   WRITING_PRACTICE = 'WRITING_PRACTICE',
   WRITING_TEST = 'WRITING_TEST',
   PRACTICE_HISTORY = 'PRACTICE_HISTORY',
-}
-
-export interface ReadingArticle {
-  id: number;
-  hskLevel: number;
-  title: string;
-  chineseTitle: string;
-  content: string;
-}
-
-export enum ReadingMode {
-  READING = 'READING',
-  TRANSLATION = 'TRANSLATION',
 }
 
 export interface PracticeSessionDetail {
@@ -76,4 +61,18 @@ export interface PracticeSession {
   score: number;
   total: number;
   details: PracticeSessionDetail[];
+}
+
+// FIX: Added ReadingArticle and ReadingMode types to resolve import errors.
+export interface ReadingArticle {
+  id: number;
+  hskLevel: number;
+  title: string;
+  chineseTitle: string;
+  content: string;
+}
+
+export enum ReadingMode {
+  READING = 'READING',
+  TRANSLATION = 'TRANSLATION',
 }

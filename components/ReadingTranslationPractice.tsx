@@ -72,9 +72,7 @@ const PracticeView: React.FC<{ article: ReadingArticle; mode: ReadingMode; onBac
 
   const getPinyinForText = useCallback(async (text: string) => {
     setIsLoadingPinyin(true);
-const ai = new GoogleGenAI({
-  apiKey: import.meta.env.VITE_GOOGLE_API_KEY
-});
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash",
@@ -119,9 +117,7 @@ const ai = new GoogleGenAI({
     setIsLoading(true);
     setEvaluation(null);
     setMessage('');
-const ai = new GoogleGenAI({
-  apiKey: import.meta.env.VITE_GOOGLE_API_KEY
-});
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     let prompt = '';
     if (mode === ReadingMode.READING) {

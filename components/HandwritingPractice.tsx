@@ -4,6 +4,7 @@ import { HSKWord, PracticeMode, WordRange, HSKLevelData, PracticeSession, Practi
 import { HSK_LEVELS } from '../hsk-levels';
 import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons';
 import { generateTiengTrung4LessonRanges } from '../tieng-trung-4-lessons';
+import { generateHSK4LessonRanges } from '../hsk4-lessons';
 import DrawingCanvas, { DrawingCanvasApiRef } from './DrawingCanvas';
 import * as storageService from '../storageService';
 import { GoogleGenAI, Type } from "@google/genai";
@@ -165,6 +166,8 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
           baseRanges = generateTiengTrung3LessonRanges(hskData.words.length);
         } else if (selectedHSKLevel === 'TIENG TRUNG 4') {
           baseRanges = generateTiengTrung4LessonRanges(hskData.words.length);
+        } else if (selectedHSKLevel === 'HSK 4') {
+          baseRanges = generateHSK4LessonRanges(hskData.words.length);
         } else {
           baseRanges = generateNumericalRanges(hskData.words.length);
         }
@@ -406,7 +409,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
 
   const totalWordsInLevel = currentHSKData.words.length;
   // Combine conditions for hiding custom range input
-  const hideCustomRange = selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3' || selectedHSKLevel === 'TIENG TRUNG 4';
+  const hideCustomRange = selectedHSKLevel === 'HSK 4' || selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3' || selectedHSKLevel === 'TIENG TRUNG 4';
 
   // Conditional class names for full screen
   const containerClasses = `
@@ -530,7 +533,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
             </div>
           </div>
 
-          {!hideCustomRange && !isCustomLevel && ( // Hide custom range for HSK 5, HSK 6, Tiếng Trung 3, Tiếng Trung 4, and Custom Level
+          {!hideCustomRange && !isCustomLevel && ( // Hide custom range for HSK 4, HSK 5, HSK 6, Tiếng Trung 3, Tiếng Trung 4, and Custom Level
             <div className="mb-6 text-center">
               <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-3">3. Chọn phạm vi tùy chỉnh (tùy chọn):</h3>
               <div className="flex items-center justify-center gap-2 mb-3">
@@ -754,32 +757,28 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
             {/* Correct Answer Display */}
             {showCorrectAnswer && (
               <div className={`mt-8 p-6 bg-green-50 dark:bg-slate-700 rounded-lg shadow-lg ${isFullScreen ? 'max-w-full' : ''}`}>
-                <h4 className="text-2xl font-bold text-green-700 dark:text-green-300 text-center mb-4">Đáp án chính xác:</h4>
-                <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+                <h4 className="text-2xl font-bold text-green-700 dark:text-green-300 mb-4 text-center">Đáp án chính xác:</h4>
+                <div className="flex flex-col md:flex-row justify-center items-center gap-8">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Chữ Hán</p>
+                    <p className={mandarinAnswerClasses} lang="zh-Hans">
+                      {practiceWords[currentWordIndex].mandarin}
+                    </p>
+                  </div>
                   {userDrawingDataUrl && (
                     <div className="text-center">
-                      <p className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Bài viết của bạn:</p>
-                      <img src={userDrawingDataUrl} alt="User drawing" className="border border-gray-300 dark:border-gray-600 rounded-md w-32 h-32 object-contain" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Chữ bạn viết</p>
+                      <img src={userDrawingDataUrl} alt="Chữ bạn viết" className="border-2 border-gray-300 dark:border-gray-600 rounded-lg shadow-sm bg-white max-h-40" />
                     </div>
                   )}
-                  <div className="text-center">
-                    <p className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">Chữ Hán:</p>
-                    <p className={mandarinAnswerClasses}>{practiceWords[currentWordIndex].mandarin}</p>
-                  </div>
                 </div>
               </div>
             )}
           </>
         ) : (
-            <div className="text-center p-8 bg-blue-100 dark:bg-slate-800 rounded-lg shadow-xl mt-8 max-w-2xl mx-auto">
-              <p className="text-xl text-red-500 mb-4">{message || 'Không tìm thấy từ nào để luyện tập. Vui lòng thử lại với các lựa chọn khác.'}</p>
-              <button
-                onClick={() => setIsPracticeStarted(false)} // Go back to selection screen
-                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-lg transition-all duration-300"
-              >
-                Quay lại lựa chọn
-              </button>
-            </div>
+          <div className="text-center p-8 bg-blue-100 dark:bg-slate-800 rounded-lg shadow-xl mt-8 max-w-2xl mx-auto">
+             <p className="text-xl text-red-500 mb-4">{message || 'Không có từ vựng để luyện tập.'}</p>
+          </div>
         )
       )}
     </div>

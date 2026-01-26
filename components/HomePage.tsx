@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Section } from '../types';
 import { HSK_LEVELS } from '../hsk-levels';
-import { BookOpenIcon, BrainIcon, SparklesIcon, TypeIcon, TrophyIcon, PencilIcon } from './icons'; 
+import { ChineseCharIcon, SparklesIcon, TypeIcon, TrophyIcon, PencilIcon } from './icons'; 
 
 interface HomePageProps {
   onSelectSection: (section: Section) => void;
@@ -21,15 +21,8 @@ const practiceModules = [
     id: Section.VOCABULARY_PRACTICE,
     title: 'Luyện từ vựng',
     description: 'Củng cố vốn từ qua flashcards, quizzes, ghép từ và nhiều hơn nữa.',
-    icon: <BrainIcon className="w-12 h-12 text-green-500" />,
+    icon: <ChineseCharIcon className="w-12 h-12 text-green-500" />,
     color: 'green',
-  },
-  {
-    id: Section.READING_TRANSLATION_PRACTICE,
-    title: 'Luyện Đọc - Dịch (Thử nghiệm)',
-    description: 'Cải thiện kỹ năng đọc hiểu và dịch thuật qua các bài văn ngắn.',
-    icon: <BookOpenIcon className="w-12 h-12 text-orange-500" />,
-    color: 'orange',
   },
   {
     id: Section.WRITING_TEST,

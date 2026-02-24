@@ -33,8 +33,131 @@ const practiceModules = [
   },
 ];
 
+interface Quote {
+  mandarin: string;
+  pinyin: string;
+  vietnamese: string;
+  author?: string;
+}
+
+const QUOTES: Quote[] = [
+  {
+    mandarin: '千里之行，始于足下',
+    pinyin: 'Qiānlǐ zhī xíng, shǐ yú zú xià',
+    vietnamese: 'Hành trình vạn dặm bắt đầu từ những bước chân đầu tiên.',
+    author: 'Lão Tử (老子)',
+  },
+  {
+    mandarin: '书山有路勤为径，学海无涯苦作舟。',
+    pinyin: 'Shū shān yǒu lù qín wèi jìng, xué hǎi wú yá kǔ zuò zhōu.',
+    vietnamese: 'Núi sách có đường, cần cù là lối; biển học vô biên, khổ luyện là thuyền.',
+  },
+  {
+    mandarin: '活到老，学到老。',
+    pinyin: 'Huó dào lǎo, xué dào lǎo.',
+    vietnamese: 'Học, học nữa, học mãi (Sống đến già, học đến già).',
+  },
+  {
+    mandarin: '学如逆水行舟，不进则退。',
+    pinyin: 'Xué rú nì shuǐ xíng zhōu, bù jìn zé tuì.',
+    vietnamese: 'Học như chèo thuyền ngược nước, không tiến ắt sẽ lùi.',
+  },
+  {
+    mandarin: '绳锯木断，水滴石穿。',
+    pinyin: 'Shéng jù mù duàn, shuǐ dī shí chuān.',
+    vietnamese: 'Dây thừng cưa lâu gỗ cũng đứt, nước chảy đá mòn (Sự kiên trì trong học tập).',
+  },
+  {
+    mandarin: '少壮不努力，老大徒伤悲。',
+    pinyin: 'Shào zhuàng bù nǔ lì, lǎo dà tú shāng bēi.',
+    vietnamese: 'Trẻ không nỗ lực, già chỉ biết bi thương.',
+  },
+  {
+    mandarin: '温故而知新。',
+    pinyin: 'Wēn gù ér zhī xīn.',
+    vietnamese: 'Ôn lại cái cũ để hiểu thêm cái mới.',
+  },
+  {
+    mandarin: '学而不思则罔，思而不学则殆。',
+    pinyin: 'Xué ér bù sī zé wǎng, sī ér bù xué zé dài.',
+    vietnamese: 'Học mà không suy nghĩ thì mờ mịt, nghĩ mà không học thì nguy hại.',
+  },
+  {
+    mandarin: '读书百遍，其义自见。',
+    pinyin: 'Dú shū bǎi biàn, qí yì zì xiàn.',
+    vietnamese: 'Sách đọc trăm lần, ý nghĩa tự thấu hiểu.',
+  },
+  {
+    mandarin: '纸上得来终觉浅，绝知此事要躬行。',
+    pinyin: 'Zhǐ shàng dé lái zhōng jué qiǎn, jué zhī cǐ shì yào gōng xíng.',
+    vietnamese: 'Kiến thức trên giấy vốn nông cạn, muốn hiểu sâu sắc phải thực hành.',
+  },
+  {
+    mandarin: '好学近乎知。',
+    pinyin: 'Hào xué jìn hū zhī.',
+    vietnamese: 'Ham học hỏi là gần với trí tuệ rồi.',
+  },
+  {
+    mandarin: '三人行，必有我师焉。',
+    pinyin: 'Sān rén xíng, bì yǒu wǒ shī yān.',
+    vietnamese: 'Trong ba người cùng đi, tất có người là thầy của ta.',
+  },
+  {
+    mandarin: '敏而好学，不耻下问。',
+    pinyin: 'Mǐn ér hào xué, bù chǐ xià wèn.',
+    vietnamese: 'Thông minh ham học, không ngại hỏi kẻ dưới mình.',
+  },
+  {
+    mandarin: '知之为知之，不知为不知，是知也。',
+    pinyin: 'Zhī zhī wéi zhī zhī, bù zhī wéi bù zhī, shì zhī yě.',
+    vietnamese: 'Biết thì nói là biết, không biết thì nói là không biết, đó mới là biết thực sự.',
+  },
+  {
+    mandarin: '学无止境。',
+    pinyin: 'Xué wú zhǐ jìng.',
+    vietnamese: 'Sự học là không có điểm dừng.',
+  },
+  {
+    mandarin: '欲穷千里目，更上一层楼。',
+    pinyin: 'Yù qióng qiān lǐ mù, gèng shàng yī céng lóu.',
+    vietnamese: 'Muốn nhìn xa nghìn dặm, hãy leo thêm một tầng lầu.',
+  },
+  {
+    mandarin: '读书破万卷，下笔如有神。',
+    pinyin: 'Dú shū pò wàn juàn, xià bǐ rú yǒu shén.',
+    vietnamese: 'Đọc sách vạn cuốn, hạ bút như có thần.',
+  },
+  {
+    mandarin: '知识就是力量。',
+    pinyin: 'Zhī shi jiù shì lì liàng.',
+    vietnamese: 'Tri thức chính là sức mạnh.',
+  },
+  {
+    mandarin: '书到用时方恨少。',
+    pinyin: 'Shū dào yòng shí fāng hèn shǎo.',
+    vietnamese: 'Sách đến lúc dùng mới hận là đọc ít (Kiến thức đến khi cần mới thấy thiếu).',
+  },
+  {
+    mandarin: '黑发不知勤学早，白首方悔读书迟。',
+    pinyin: 'Hēi fà bù zhī qín xué zǎo, bái shǒu fāng huǐ dú shū chí.',
+    vietnamese: 'Tóc đen không biết chăm học sớm, đầu bạc mới hối hận việc đọc sách đã muộn.',
+  },
+  {
+    mandarin: '玉不琢，不成器；人不学，不知道。',
+    pinyin: 'Yù bù zhuó, bù chéng qì; rén bù xué, bù zhī dào.',
+    vietnamese: 'Ngọc không mài không thành đồ quý; người không học không hiểu đạo lý.',
+  },
+];
+
 const HomePage: React.FC<HomePageProps> = ({ onSelectSection, onSelectHSKLevel }) => {
   const [selectedHSKLevel, setSelectedHSKLevel] = useState<string>('HSK 1');
+  const [currentQuote, setCurrentQuote] = useState<Quote>(QUOTES[0]);
+
+  useEffect(() => {
+    // Randomly select a quote on mount
+    const randomIndex = Math.floor(Math.random() * QUOTES.length);
+    setCurrentQuote(QUOTES[randomIndex]);
+  }, []);
 
   // Handle local level change if we want to sync with parent
   const handleLevelChange = (level: string) => {
@@ -44,13 +167,33 @@ const HomePage: React.FC<HomePageProps> = ({ onSelectSection, onSelectHSKLevel }
 
   return (
     <div className="container mx-auto max-w-6xl">
-      <div className="text-center mb-12 animate-fade-in-up">
+      <div className="text-center mb-8 animate-fade-in-up">
         <h2 className="text-4xl md:text-5xl font-extrabold text-blue-900 dark:text-blue-100 mb-4 tracking-tight">
           Chào mừng đến với <span className="text-blue-600 dark:text-blue-400">Pavex HSK</span>
         </h2>
-        <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+        <p className="text-lg md:text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-8">
           Nền tảng luyện thi HSK toàn diện: Từ vựng, Ngữ pháp, và Kỹ năng viết.
         </p>
+
+        {/* Motivational Quote Section */}
+        <div className="max-w-3xl mx-auto bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 p-6 rounded-2xl border border-blue-100 dark:border-slate-700 shadow-sm relative overflow-hidden group">
+          <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+            <SparklesIcon className="w-24 h-24 text-blue-600" />
+          </div>
+          <p className="text-3xl md:text-4xl font-mandarin text-blue-800 dark:text-blue-300 mb-2 tracking-widest leading-relaxed" lang="zh-Hans">
+            {currentQuote.mandarin}
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 font-medium italic">
+            {currentQuote.pinyin}
+          </p>
+          <div className="h-px w-16 bg-blue-300 dark:bg-blue-600 mx-auto mb-3"></div>
+          <p className="text-gray-700 dark:text-gray-200 font-semibold text-lg">
+            "{currentQuote.vietnamese}"
+          </p>
+          {currentQuote.author && (
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">— {currentQuote.author}</p>
+          )}
+        </div>
       </div>
 
       <div className="mb-10 flex justify-center">

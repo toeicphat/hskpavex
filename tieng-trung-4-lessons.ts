@@ -17,6 +17,7 @@ const TIENG_TRUNG_4_LESSON_DEFINITIONS: LessonDefinition[] = [
   { label: 'Bài 7', startWordIndex: 102, endWordIndex: 116 },
   { label: 'Bài 8', startWordIndex: 116, endWordIndex: 133 },
   { label: 'Bài 9', startWordIndex: 133, endWordIndex: 151 },
+  { label: 'Bài 10', startWordIndex: 151, endWordIndex: 166 },
 ];
 
 export const generateTiengTrung4LessonRanges = (totalWords: number): WordRange[] => {

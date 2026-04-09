@@ -4,6 +4,7 @@ import { HSKWord, PracticeMode, WordRange, HSKLevelData, PracticeSession, Practi
 import { HSK_LEVELS } from '../hsk-levels';
 import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons';
 import { generateTiengTrung4LessonRanges } from '../tieng-trung-4-lessons';
+import { generateTiengTrung5LessonRanges } from '../tieng-trung-5-lessons';
 import { generateHSK4LessonRanges } from '../hsk4-lessons';
 import DrawingCanvas, { DrawingCanvasApiRef } from './DrawingCanvas';
 import * as storageService from '../storageService';
@@ -166,6 +167,8 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
           baseRanges = generateTiengTrung3LessonRanges(hskData.words.length);
         } else if (selectedHSKLevel === 'TIENG TRUNG 4') {
           baseRanges = generateTiengTrung4LessonRanges(hskData.words.length);
+        } else if (selectedHSKLevel === 'TIENG TRUNG 5') {
+          baseRanges = generateTiengTrung5LessonRanges(hskData.words.length);
         } else if (selectedHSKLevel === 'HSK 4') {
           baseRanges = generateHSK4LessonRanges(hskData.words.length);
         } else {
@@ -409,7 +412,7 @@ const HandwritingPractice: React.FC<HandwritingPracticeProps> = ({ selectedHSKLe
 
   const totalWordsInLevel = currentHSKData.words.length;
   // Combine conditions for hiding custom range input
-  const hideCustomRange = selectedHSKLevel === 'HSK 4' || selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3' || selectedHSKLevel === 'TIENG TRUNG 4';
+  const hideCustomRange = selectedHSKLevel === 'HSK 4' || selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3' || selectedHSKLevel === 'TIENG TRUNG 4' || selectedHSKLevel === 'TIENG TRUNG 5';
 
   // Conditional class names for full screen
   const containerClasses = `

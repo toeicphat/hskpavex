@@ -4,6 +4,7 @@ import { HSKLevelData, HSKWord, WordRange, VocabularyPracticeMode, DifficultyLev
 import { HSK_LEVELS } from '../hsk-levels';
 import { generateTiengTrung3LessonRanges } from '../tieng-trung-3-lessons';
 import { generateTiengTrung4LessonRanges } from '../tieng-trung-4-lessons';
+import { generateTiengTrung5LessonRanges } from '../tieng-trung-5-lessons';
 import { generateHSK4LessonRanges } from '../hsk4-lessons';
 import FlashcardPractice from './FlashcardPractice';
 import MatchingWordsPractice from './MatchingWordsPractice';
@@ -129,6 +130,8 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
           baseRanges = generateTiengTrung3LessonRanges(hskData.words.length);
         } else if (selectedHSKLevel === 'TIENG TRUNG 4') {
           baseRanges = generateTiengTrung4LessonRanges(hskData.words.length);
+        } else if (selectedHSKLevel === 'TIENG TRUNG 5') {
+          baseRanges = generateTiengTrung5LessonRanges(hskData.words.length);
         } else if (selectedHSKLevel === 'HSK 4') {
           baseRanges = generateHSK4LessonRanges(hskData.words.length);
         } else {
@@ -321,7 +324,7 @@ const VocabularyPractice: React.FC<VocabularyPracticeProps> = ({ selectedHSKLeve
 
   const totalWordsInLevel = currentHSKData.words.length;
   // Combine conditions for hiding custom range input
-  const hideCustomRange = selectedHSKLevel === 'HSK 4' || selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3' || selectedHSKLevel === 'TIENG TRUNG 4';
+  const hideCustomRange = selectedHSKLevel === 'HSK 4' || selectedHSKLevel === 'HSK 5' || selectedHSKLevel === 'HSK 6' || selectedHSKLevel === 'TIENG TRUNG 3' || selectedHSKLevel === 'TIENG TRUNG 4' || selectedHSKLevel === 'TIENG TRUNG 5';
 
   return (
     <div className="container mx-auto p-4 md:p-8 bg-blue-100 dark:bg-slate-800 rounded-lg shadow-xl max-w-5xl mt-8">

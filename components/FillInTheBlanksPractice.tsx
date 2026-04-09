@@ -69,9 +69,7 @@ const FillInTheBlanksPractice: React.FC<FillInTheBlanksPracticeProps> = ({ words
 
 
   const generateChineseSentence = useCallback(async (word: HSKWord, targetDifficulty: DifficultyLevel): Promise<string | null> => {
-const ai = new GoogleGenAI({
-  apiKey: import.meta.env.VITE_GOOGLE_API_KEY
-});
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY }); 
     let generatedSentence: { sentence: string; correct_word: string } | null = null;
     let difficultyGuidance = '';
 

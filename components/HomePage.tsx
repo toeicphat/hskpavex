@@ -199,7 +199,7 @@ const HomePage: React.FC<HomePageProps> = ({ onSelectSection, onSelectHSKLevel }
       <div className="mb-10 flex justify-center">
         <div className="bg-white dark:bg-slate-800 p-2 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex items-center space-x-2 overflow-x-auto max-w-full">
           <span className="text-gray-500 dark:text-gray-400 font-medium px-2 whitespace-nowrap">Chọn cấp độ:</span>
-          {HSK_LEVELS.map((levelData) => (
+          {HSK_LEVELS.filter(level => level.level !== 'TIENG TRUNG 3' && level.level !== 'TIENG TRUNG 4').map((levelData) => (
             <button
               key={levelData.level}
               onClick={() => handleLevelChange(levelData.level)}

@@ -8,6 +8,7 @@ import { HSK5_VOCABULARY } from './hsk5-vocabulary';
 import { HSK6_VOCABULARY } from './hsk6-vocabulary';
 import { TIENG_TRUNG_3_VOCABULARY } from './tieng-trung-3-vocabulary';
 import { TIENG_TRUNG_4_VOCABULARY } from './tieng-trung-4-vocabulary';
+import { TIENG_TRUNG_5_VOCABULARY } from './tieng-trung-5-vocabulary';
 
 export const HSK_LEVELS: HSKLevelData[] = [
   { level: 'HSK 1', label: 'HSK 1', words: HSK1_VOCABULARY },
@@ -18,4 +19,5 @@ export const HSK_LEVELS: HSKLevelData[] = [
   { level: 'HSK 6', label: 'HSK 6', words: HSK6_VOCABULARY },
   { level: 'TIENG TRUNG 3', label: 'Tiếng Trung 3', words: TIENG_TRUNG_3_VOCABULARY },
   { level: 'TIENG TRUNG 4', label: 'Tiếng Trung 4', words: TIENG_TRUNG_4_VOCABULARY },
+  { level: 'TIENG TRUNG 5', label: 'Tiếng Trung 5', words: TIENG_TRUNG_5_VOCABULARY },
 ];

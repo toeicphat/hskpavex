@@ -10,14 +10,14 @@ interface LessonDefinition {
 const TIENG_TRUNG_5_LESSON_DEFINITIONS: LessonDefinition[] = [
   { label: 'Bài 1', startWordIndex: 0, endWordIndex: 29 },
   { label: 'Bài 2', startWordIndex: 29, endWordIndex: 54 },
-  { label: 'Bài 3', startWordIndex: 54, endWordIndex: 54 },
-  { label: 'Bài 4', startWordIndex: 54, endWordIndex: 54 },
-  { label: 'Bài 5', startWordIndex: 54, endWordIndex: 54 },
-  { label: 'Bài 6', startWordIndex: 54, endWordIndex: 54 },
-  { label: 'Bài 7', startWordIndex: 54, endWordIndex: 54 },
-  { label: 'Bài 8', startWordIndex: 54, endWordIndex: 54 },
-  { label: 'Bài 9', startWordIndex: 54, endWordIndex: 54 },
-  { label: 'Bài 10', startWordIndex: 54, endWordIndex: 54 },
+  { label: 'Bài 3', startWordIndex: 54, endWordIndex: 80 },
+  { label: 'Bài 4', startWordIndex: 80, endWordIndex: 100 },
+  { label: 'Bài 5', startWordIndex: 100, endWordIndex: 100 },
+  { label: 'Bài 6', startWordIndex: 100, endWordIndex: 100 },
+  { label: 'Bài 7', startWordIndex: 100, endWordIndex: 100 },
+  { label: 'Bài 8', startWordIndex: 100, endWordIndex: 100 },
+  { label: 'Bài 9', startWordIndex: 100, endWordIndex: 100 },
+  { label: 'Bài 10', startWordIndex: 100, endWordIndex: 100 },
 ];
 
 export const generateTiengTrung5LessonRanges = (totalWords: number): WordRange[] => {

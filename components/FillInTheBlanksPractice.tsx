@@ -35,7 +35,14 @@ interface QuestionState {
   isCorrectlyAnswered: boolean;
 }
 
-const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
+};
 
 const FillInTheBlanksPractice: React.FC<FillInTheBlanksPracticeProps> = ({ words, fullVocabulary, selectedHSKLevel, selectedUserDifficulty, autoAdvance, onPracticeEnd, onGoBack, onWordResult, wordRangeLabel }) => {
   const [poolOfAvailableWords, setPoolOfAvailableWords] = useState<HSKWord[]>([]);

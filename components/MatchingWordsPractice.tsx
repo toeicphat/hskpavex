@@ -23,7 +23,14 @@ interface MatchingWordItem {
   isMatched: boolean;
 }
 
-const shuffleArray = (array: any[]) => [...array].sort(() => Math.random() - 0.5);
+const shuffleArray = <T,>(array: T[]): T[] => {
+  const newArray = [...array];
+  for (let i = newArray.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+  }
+  return newArray;
+};
 
 const MatchingWordsPractice: React.FC<MatchingWordsPracticeProps> = ({ words, autoAdvance, onPracticeEnd, onGoBack, onWordResult, selectedHSKLevel, wordRangeLabel }) => {
   // `wordsLeftForTurns` tracks the words not yet used across *all* game turns within the current session.

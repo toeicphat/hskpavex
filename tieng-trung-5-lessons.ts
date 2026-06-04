@@ -15,9 +15,9 @@ const TIENG_TRUNG_5_LESSON_DEFINITIONS: LessonDefinition[] = [
   { label: 'Bài 5', startWordIndex: 100, endWordIndex: 125 },
   { label: 'Bài 6', startWordIndex: 125, endWordIndex: 149 },
   { label: 'Bài 7', startWordIndex: 149, endWordIndex: 176 },
-  { label: 'Bài 8', startWordIndex: 176, endWordIndex: 176 },
-  { label: 'Bài 9', startWordIndex: 176, endWordIndex: 176 },
-  { label: 'Bài 10', startWordIndex: 176, endWordIndex: 176 },
+  { label: 'Bài 8', startWordIndex: 176, endWordIndex: 201 },
+  { label: 'Bài 9', startWordIndex: 201, endWordIndex: 221 },
+  { label: 'Bài 10', startWordIndex: 221, endWordIndex: 247 },
 ];
 
 export const generateTiengTrung5LessonRanges = (totalWords: number): WordRange[] => {
